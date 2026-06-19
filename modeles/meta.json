@@ -1,0 +1,29 @@
+{
+  "modele_final": "XGBoost",
+  "seuil": 0.5,
+  "rappel": 0.790541,
+  "precision": 0.325,
+  "f1_score": 0.46063,
+  "auc_roc": 0.679796,
+  "n_train": 3172,
+  "n_test": 544,
+  "n_colonnes_dummies": 33,
+  "vars_modele": [
+    "Milieu_Residence",
+    "Sexe",
+    "Niveau_Etude",
+    "Statut_Matrimonial",
+    "Activite_Remuneree",
+    "Type_FOSA",
+    "Soutien_PEPFAR",
+    "Observance_4j",
+    "DSD_Recode",
+    "Protocole_Recode",
+    "Region",
+    "Tranche_Age"
+  ],
+  "seed": 42,
+  "smote": true,
+  "scaler": "StandardScaler",
+  "date": "2026-06"
+}

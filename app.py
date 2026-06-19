@@ -1,0 +1,776 @@
+# =============================================================================
+# TARV-Score — Application de scoring clinique | Bilingual FR/EN
+# Mémoire ISE3 | ISSEA-CEMAC 2025-2026 | CNLS / GTC / Cameroun
+# Auteur : AZONFACK MYRIAM DOLVIANNE
+# Modèle : XGBoost — Rappel 83.8 % | AUC-ROC 0.704
+# =============================================================================
+
+import base64
+import json
+import math
+from pathlib import Path
+
+import joblib
+import matplotlib.pyplot as plt
+import pandas as pd
+import streamlit as st
+
+# ─────────────────────────────────────────────────────────────────────────────
+# CONFIG PAGE
+# ─────────────────────────────────────────────────────────────────────────────
+st.set_page_config(
+    page_title="TARV-Score | CNLS Cameroun",
+    page_icon="🎗️",
+    layout="wide",
+    initial_sidebar_state="expanded",
+)
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TRADUCTIONS FR / EN
+# ─────────────────────────────────────────────────────────────────────────────
+T = {
+    # ── Sidebar ──────────────────────────────────────────────────────────────
+    "lang_label":    {"fr": "🌐 Langue / Language", "en": "🌐 Language / Langue"},
+    "lang_fr":       {"fr": "🇫🇷 Français",          "en": "🇫🇷 French"},
+    "lang_en":       {"fr": "🇬🇧 Anglais",           "en": "🇬🇧 English"},
+
+    "sidebar_title": {"fr": "🎗️ TARV-Score",         "en": "🎗️ TARV-Score"},
+    "sidebar_sub":   {"fr": "CNLS Cameroun · ISSEA-CEMAC 2025-2026",
+                      "en": "CNLS Cameroon · ISSEA-CEMAC 2025-2026"},
+    "perf_title":    {"fr": "📊 Performances du modèle",
+                      "en": "📊 Model Performance"},
+    "recall_lbl":    {"fr": "Rappel",                "en": "Recall"},
+    "algo_lbl":      {"fr": "Algorithme",            "en": "Algorithm"},
+    "seuil_lbl":     {"fr": "Seuil",                 "en": "Threshold"},
+    "smote_lbl":     {"fr": "SMOTE ✓",               "en": "SMOTE ✓"},
+    "train_lbl":     {"fr": "Entraînement",          "en": "Training"},
+    "test_lbl":      {"fr": "Test",                  "en": "Test"},
+
+    "grid_title":    {"fr": "🚦 Grille d'interprétation",
+                      "en": "🚦 Risk Interpretation Grid"},
+    "risk_low":      {"fr": "Faible",                "en": "Low"},
+    "risk_mod":      {"fr": "Modéré",                "en": "Moderate"},
+    "risk_high":     {"fr": "Élevé",                 "en": "High"},
+    "risk_low_desc": {"fr": "probabilité < 30 %",    "en": "probability < 30%"},
+    "risk_mod_desc": {"fr": "probabilité 30 % – 50 %", "en": "probability 30%–50%"},
+    "risk_high_desc":{"fr": "probabilité ≥ 50 %",   "en": "probability ≥ 50%"},
+
+    "ctx_title":     {"fr": "ℹ️ Contexte de l'étude",
+                      "en": "ℹ️ Study Context"},
+    "ctx_body":      {
+        "fr": "Données CNLS 2024 · Enquête nationale auprès de **2 720 PvVIH** dans les 10 régions du Cameroun.\n\n4 modèles comparés : Régression Logistique, Random Forest, SVM, **XGBoost** (retenu).",
+        "en": "CNLS 2024 data · National survey of **2,720 PLHIV** across Cameroon's 10 regions.\n\n4 models compared: Logistic Regression, Random Forest, SVM, **XGBoost** (selected).",
+    },
+    "disclaimer":    {
+        "fr": "⚠️ Outil d'aide à la décision.<br>Ne remplace pas le jugement clinique.",
+        "en": "⚠️ Decision-support tool.<br>Does not replace clinical judgment.",
+    },
+
+    # ── En-tête ──────────────────────────────────────────────────────────────
+    "main_title":    {
+        "fr": "OUTIL DE DÉTECTION DU RISQUE D'INTERRUPTION AU TARV<br>CHEZ LES PVVIH AU CAMEROUN",
+        "en": "RISK OF ART INTERRUPTION DETECTION TOOL<br>AMONG PLHIV IN CAMEROON",
+    },
+    "main_sub":      {
+        "fr": "Prédiction du risque d'interruption du Traitement Antirétroviral",
+        "en": "Prediction of the risk of Antiretroviral Treatment interruption",
+    },
+    "badge_cnls":    {"fr": "CNLS Cameroun",         "en": "NACC Cameroon"},
+    "badge_xgb":     {"fr": "XGBoost Champion",      "en": "XGBoost Champion"},
+    "badge_recall":  {"fr": "Rappel : 83,8 %",       "en": "Recall: 83.8%"},
+    "badge_auc":     {"fr": "AUC-ROC : 0,704",       "en": "AUC-ROC: 0.704"},
+
+    # ── Formulaire ───────────────────────────────────────────────────────────
+    "form_intro":    {
+        "fr": "📋 Profil du patient — 12 variables du modèle XGBoost",
+        "en": "📋 Patient Profile — 12 variables of the XGBoost model",
+    },
+    "form_sub":      {
+        "fr": "Renseignez toutes les caractéristiques, puis cliquez sur <strong>Calculer le Score</strong>.",
+        "en": "Fill in all characteristics, then click <strong>Calculate Score</strong>.",
+    },
+    "sec_loc":       {"fr": "📍 Localisation & Structure",
+                      "en": "📍 Location & Facility"},
+    "sec_socio":     {"fr": "👤 Profil socio-démographique",
+                      "en": "👤 Socio-demographic Profile"},
+    "sec_thera":     {"fr": "💊 Suivi thérapeutique",
+                      "en": "💊 Therapeutic Follow-up"},
+
+    # Variables
+    "region":        {"fr": "Région",                "en": "Region"},
+    "type_fosa":     {"fr": "Type de FOSA",          "en": "Health Facility Type"},
+    "pepfar":        {"fr": "Soutien PEPFAR",        "en": "PEPFAR Support"},
+    "milieu":        {"fr": "Milieu de résidence",   "en": "Residence Setting"},
+    "sexe":          {"fr": "Sexe",                  "en": "Sex"},
+    "tranche_age":   {"fr": "Tranche d'âge",         "en": "Age Group"},
+    "niveau_etude":  {"fr": "Niveau d'étude",        "en": "Education Level"},
+    "statut_mat":    {"fr": "Statut matrimonial",    "en": "Marital Status"},
+    "activite":      {"fr": "Activité rémunérée",    "en": "Paid Activity"},
+    "observance":    {"fr": "Observance (4 derniers jours)",
+                      "en": "Adherence (last 4 days)"},
+    "dsd":           {"fr": "Mode de dispensation (DSD)",
+                      "en": "Dispensation Mode (DSD)"},
+    "protocole":     {"fr": "Protocole ARV",         "en": "ART Protocol"},
+
+    "oui":           {"fr": "Oui",                   "en": "Yes"},
+    "non":           {"fr": "Non",                   "en": "No"},
+    "urbain":        {"fr": "Urbain",                "en": "Urban"},
+    "rural":         {"fr": "Rural",                 "en": "Rural"},
+    "masculin":      {"fr": "Masculin",              "en": "Male"},
+    "feminin":       {"fr": "Féminin",               "en": "Female"},
+
+    "btn_calc":      {"fr": "🔍  Calculer le Score de Risque",
+                      "en": "🔍  Calculate Risk Score"},
+    "spinner":       {"fr": "Calcul du score en cours…",
+                      "en": "Computing score…"},
+
+    # ── Résultats ────────────────────────────────────────────────────────────
+    "res_divider":   {"fr": "📊 Résultat du Scoring Clinique",
+                      "en": "📊 Clinical Scoring Result"},
+    "prob_label":    {"fr": "probabilité d'interruption",
+                      "en": "interruption probability"},
+    "seuil_txt":     {"fr": "Seuil de décision",     "en": "Decision threshold"},
+    "reco_lbl":      {"fr": "Recommandation clinique :",
+                      "en": "Clinical Recommendation:"},
+    "risk_low_lbl":  {"fr": "FAIBLE",                "en": "LOW"},
+    "risk_mod_lbl":  {"fr": "MODÉRÉ",                "en": "MODERATE"},
+    "risk_high_lbl": {"fr": "ÉLEVÉ",                 "en": "HIGH"},
+
+    "reco_low": {
+        "fr": ("Profil stable. Maintenir le suivi standard. Renforcer les messages "
+               "d'observance lors de la prochaine dispensation."),
+        "en": ("Stable profile. Maintain standard follow-up. Reinforce adherence "
+               "counselling at next dispensation visit."),
+    },
+    "reco_mod": {
+        "fr": ("Suivi renforcé recommandé. Identifier les freins à l'observance "
+               "(transport, soutien familial, effets indésirables) et proposer "
+               "un accompagnement individualisé dès cette consultation."),
+        "en": ("Enhanced follow-up recommended. Identify barriers to adherence "
+               "(transport, family support, side effects) and offer individualised "
+               "support starting from this visit."),
+    },
+    "reco_high": {
+        "fr": ("Intervention prioritaire requise. Déclencher un plan de rétention : "
+               "contact téléphonique dans les 48 h, visite à domicile (VAD), "
+               "orientation vers un accompagnement psychosocial et révision "
+               "du mode de dispensation (DSD) si possible."),
+        "en": ("Priority intervention required. Launch a retention plan: "
+               "phone contact within 48 h, home visit (VAD), referral for "
+               "psychosocial support, and review of the dispensation mode (DSD) if possible."),
+    },
+
+    "imp_sub":       {
+        "fr": "Importances globales du modèle XGBoost — plus la barre est longue, plus la variable pèse dans la prédiction.",
+        "en": "Global XGBoost feature importances — longer bar = more weight in the prediction.",
+    },
+    "imp_title":     {"fr": "🔬 Top {} facteurs les plus contributifs",
+                      "en": "🔬 Top {} most contributing factors"},
+    "imp_xlabel":    {"fr": "Importance XGBoost (feature_importances_)",
+                      "en": "XGBoost Importance (feature_importances_)"},
+    "imp_legend":    {
+        "fr": "🔴 Importance forte &nbsp;|&nbsp; 🟠 Modérée &nbsp;|&nbsp; 🟢 Modérée-faible &nbsp;|&nbsp; 🔵 Faible",
+        "en": "🔴 High importance &nbsp;|&nbsp; 🟠 Moderate &nbsp;|&nbsp; 🟢 Moderate-low &nbsp;|&nbsp; 🔵 Low",
+    },
+    "recap_title":   {"fr": "🗂️ Récapitulatif du profil saisi",
+                      "en": "🗂️ Summary of entered profile"},
+    "recap_var":     {"fr": "Variable",              "en": "Variable"},
+    "recap_val":     {"fr": "Valeur",                "en": "Value"},
+
+    # ── Pied de page ─────────────────────────────────────────────────────────
+    "footer": {
+        "fr": ("🎗️ <strong>TARV-Score</strong> — Mémoire ISE3 ISSEA-CEMAC 2025-2026 &nbsp;|&nbsp; "
+               "CNLS / GTC Cameroun &nbsp;·&nbsp; XGBoost &nbsp;·&nbsp; Rappel : 83,8 % &nbsp;·&nbsp; "
+               "AUC-ROC : 0,704 &nbsp;·&nbsp; N entraînement : 3 172 &nbsp;·&nbsp; N test : 544<br>"
+               "<em>⚠️ Outil d'aide à la décision — Ne remplace pas le jugement clinique du prestataire de santé.</em>"),
+        "en": ("🎗️ <strong>TARV-Score</strong> — ISE3 Thesis ISSEA-CEMAC 2025-2026 &nbsp;|&nbsp; "
+               "NACC / GTC Cameroon &nbsp;·&nbsp; XGBoost &nbsp;·&nbsp; Recall: 83.8% &nbsp;·&nbsp; "
+               "AUC-ROC: 0.704 &nbsp;·&nbsp; Train N: 3,172 &nbsp;·&nbsp; Test N: 544<br>"
+               "<em>⚠️ Decision-support tool — Does not replace the clinical judgment of the healthcare provider.</em>"),
+    },
+
+    # ── Options variables ─────────────────────────────────────────────────────
+    "tranche_age_opts": {
+        "fr": ["25 à 49 Ans","18 à 20 Ans","21 à 24 Ans","50 ans et plus"],
+        "en": ["25 to 49 years","18 to 20 years","21 to 24 years","50 years and above"],
+    },
+    "niveau_etude_opts": {
+        "fr": ["Primaire","Jamais fréquenté","Secondaire Premier Cycle",
+               "Secondaire Second Cycle","Supérieur"],
+        "en": ["Primary","Never attended school","Lower Secondary",
+               "Upper Secondary","Higher Education"],
+    },
+    "statut_mat_opts": {
+        "fr": ["Marié(e) en monogamie","Célibataire","En union libre/concubinage",
+               "Marié(e) en polygamie","En séparation de corps / Divorcée","Veuf (ve)"],
+        "en": ["Married (monogamous)","Single","Cohabiting/Common-law",
+               "Married (polygamous)","Separated / Divorced","Widowed"],
+    },
+    "type_fosa_opts": {
+        "fr": ["Public","Privé confessionnel","Privé laïc"],
+        "en": ["Public","Faith-based Private","Secular Private"],
+    },
+    "observance_opts": {
+        "fr": ["Bonne","Modérée","Médiocre"],
+        "en": ["Good","Moderate","Poor"],
+    },
+    "dsd_opts": {
+        "fr": ["Standard (Suivi classique)","Dispensation communautaire / VAD"],
+        "en": ["Standard (Regular follow-up)","Community dispensation / Home visit"],
+    },
+    "protocole_opts": {
+        "fr": ["TDF+3TC+DTG (TLD)","TDF+3TC+EFV (TELE/TLE)",
+               "Protocoles avec IP (ATV/r)","Autre / Non spécifié"],
+        "en": ["TDF+3TC+DTG (TLD)","TDF+3TC+EFV (TELE/TLE)",
+               "PI-based regimens (ATV/r)","Other / Not specified"],
+    },
+    "region_opts": {
+        "fr": ["Centre","Adamaoua","Est","Extrême-Nord","Littoral",
+               "Nord","Nord-Ouest","Ouest","Sud","Sud-Ouest"],
+        "en": ["Centre","Adamawa","East","Far North","Littoral",
+               "North","North-West","West","South","South-West"],
+    },
+}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# CSS GLOBAL
+# ─────────────────────────────────────────────────────────────────────────────
+st.markdown("""
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
+.stApp { background: #eef2f7; }
+
+section[data-testid="stSidebar"] {
+    background: linear-gradient(180deg, #0b2d52 0%, #1a5e8a 55%, #0d7a5c 100%);
+}
+section[data-testid="stSidebar"] * { color: #ddeeff !important; }
+section[data-testid="stSidebar"] h1,
+section[data-testid="stSidebar"] h2,
+section[data-testid="stSidebar"] h3 { color: #ffffff !important; font-weight: 700 !important; }
+section[data-testid="stSidebar"] hr { border-color: rgba(255,255,255,0.2) !important; }
+section[data-testid="stSidebar"] [data-testid="metric-container"] {
+    background: rgba(255,255,255,0.12); border-radius: 8px; padding: 8px 12px;
+}
+section[data-testid="stSidebar"] [data-testid="metric-container"] label { color: #a8d0f0 !important; }
+section[data-testid="stSidebar"] [data-testid="stMetricValue"]
+    { color: #fff !important; font-size: 1.3em !important; font-weight: 700 !important; }
+
+div[data-testid="stForm"] button[kind="primaryFormSubmit"],
+button[kind="primary"] {
+    background: linear-gradient(135deg, #0b2d52 0%, #1a6fa8 100%) !important;
+    border: none !important; color: #fff !important;
+    font-weight: 700 !important; font-size: 1.05em !important;
+    border-radius: 10px !important; padding: 14px !important;
+    box-shadow: 0 4px 16px rgba(11,45,82,0.35) !important;
+    letter-spacing: 0.3px !important; transition: all 0.2s !important;
+}
+button[kind="primary"]:hover {
+    transform: translateY(-2px) !important;
+    box-shadow: 0 7px 22px rgba(11,45,82,0.45) !important;
+}
+.stSelectbox label, .stRadio label {
+    font-size: 0.87em !important; font-weight: 600 !important; color: #1a2d4a !important;
+}
+.res-divider {
+    display: flex; align-items: center; gap: 14px; margin: 24px 0 18px 0;
+}
+.res-divider hr { flex: 1; border: none; border-top: 2px solid #ccd8e8; }
+.res-divider span {
+    background: linear-gradient(135deg, #0b2d52, #1a6fa8);
+    color: #fff; border-radius: 25px; padding: 5px 22px;
+    font-size: 0.86em; font-weight: 700; white-space: nowrap;
+    box-shadow: 0 3px 10px rgba(11,45,82,0.25);
+}
+.footer {
+    text-align: center; font-size: 0.75em; color: #8a9bb0;
+    margin-top: 30px; padding: 14px 0;
+    border-top: 1px solid #ccd8e8; line-height: 1.8;
+}
+</style>
+""", unsafe_allow_html=True)
+
+# ─────────────────────────────────────────────────────────────────────────────
+# CHEMINS & RESSOURCES
+# ─────────────────────────────────────────────────────────────────────────────
+BASE    = Path(__file__).parent
+ASSETS  = BASE / "assets"
+MODELES = BASE / "modeles"
+
+
+@st.cache_resource
+def load_resources():
+    model    = joblib.load(MODELES / "XGBoost_v1.pkl")
+    scaler   = joblib.load(MODELES / "scaler_prepro.pkl")
+    colonnes = joblib.load(MODELES / "colonnes_train.pkl")
+    with open(MODELES / "meta.json", encoding="utf-8") as f:
+        meta = json.load(f)
+    return model, scaler, colonnes, meta
+
+
+def img_b64(path: Path) -> str:
+    with open(path, "rb") as fh:
+        return base64.b64encode(fh.read()).decode()
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SÉLECTEUR DE LANGUE (sidebar, en premier)
+# ─────────────────────────────────────────────────────────────────────────────
+with st.sidebar:
+    st.markdown(f"### {T['lang_label']['fr']}")
+    lang_choice = st.radio(
+        label="",
+        options=["fr", "en"],
+        format_func=lambda x: T["lang_fr"][x] if x == "fr" else T["lang_en"][x],
+        horizontal=True,
+        key="lang",
+        label_visibility="collapsed",
+    )
+
+L = lang_choice  # "fr" ou "en"
+
+
+def t(key: str) -> str:
+    return T[key][L]
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# CHARGEMENT MODÈLE
+# ─────────────────────────────────────────────────────────────────────────────
+try:
+    model, scaler, colonnes_train, meta = load_resources()
+except Exception as exc:
+    st.error(f"❌ {'Impossible de charger les ressources' if L=='fr' else 'Cannot load resources'}: {exc}")
+    st.stop()
+
+SEUIL = meta.get("seuil", 0.50)
+
+# ─────────────────────────────────────────────────────────────────────────────
+# RESTE DE LA SIDEBAR
+# ─────────────────────────────────────────────────────────────────────────────
+with st.sidebar:
+    st.markdown(f"## {t('sidebar_title')}")
+    st.caption(t("sidebar_sub"))
+    st.divider()
+
+    st.markdown(f"### {t('perf_title')}")
+    c1, c2 = st.columns(2)
+    c1.metric(t("recall_lbl"),  "83,8 %" if L == "fr" else "83.8%")
+    c2.metric("AUC-ROC",        "0,704"  if L == "fr" else "0.704")
+    c1.metric(t("train_lbl"),   "3 172")
+    c2.metric(t("test_lbl"),    "544")
+    st.caption(f"{t('algo_lbl')} : XGBoost  |  {t('seuil_lbl')} : {SEUIL:.0%}  |  {t('smote_lbl')}")
+
+    st.divider()
+    st.markdown(f"### {t('grid_title')}")
+    for emoji, key_lbl, key_desc, color in [
+        ("🟢", "risk_low",  "risk_low_desc",  "#d5f5e3"),
+        ("🟠", "risk_mod",  "risk_mod_desc",  "#fdebd0"),
+        ("🔴", "risk_high", "risk_high_desc", "#fadbd8"),
+    ]:
+        st.markdown(
+            f'<div style="background:{color};border-radius:8px;padding:8px 12px;'
+            f'margin-bottom:6px;font-size:0.88em;">'
+            f'<strong>{emoji} {t(key_lbl)}</strong><br>'
+            f'<span style="color:#555;">{t(key_desc)}</span></div>',
+            unsafe_allow_html=True,
+        )
+
+    st.divider()
+    st.markdown(f"### {t('ctx_title')}")
+    st.markdown(t("ctx_body"))
+    st.divider()
+    st.markdown(
+        f'<div style="font-size:0.74em;opacity:0.65;text-align:center;line-height:1.7;">'
+        f'{t("disclaimer")}</div>',
+        unsafe_allow_html=True,
+    )
+
+# ─────────────────────────────────────────────────────────────────────────────
+# EN-TÊTE PRINCIPAL
+# ─────────────────────────────────────────────────────────────────────────────
+cnls_b64  = img_b64(ASSETS / "cnls_logo.png")
+issea_b64 = img_b64(ASSETS / "issea_logo.png")
+
+st.markdown(f"""
+<div style="
+    background: linear-gradient(135deg, #0b2d52 0%, #1a5e8a 50%, #0d7a5c 100%);
+    border-radius: 18px; padding: 22px 36px; margin-bottom: 26px;
+    box-shadow: 0 10px 36px rgba(11,45,82,0.30);
+    display: flex; align-items: center; justify-content: space-between; gap: 20px;">
+    <img src="data:image/png;base64,{cnls_b64}" height="130"
+         style="border-radius:12px; box-shadow:0 6px 20px rgba(0,0,0,0.40); flex-shrink:0; object-fit:contain;">
+    <div style="text-align:center; color:#fff; flex:1;">
+        <div style="font-size:3.8em; line-height:1; margin-bottom:8px;">
+            <span style="color:#ff2222; filter:drop-shadow(0 0 10px #ff000099) drop-shadow(0 0 4px #ff0000cc);">🎗️</span>
+        </div>
+        <div style="font-size:1.22em; font-weight:900; letter-spacing:1px; text-shadow:0 2px 8px rgba(0,0,0,0.35); line-height:1.3; text-transform:uppercase;">{t("main_title")}</div>
+        <div style="font-size:0.88em; font-weight:300; opacity:0.88; margin-top:9px;">{t("main_sub")}</div>
+        <div style="display:flex; gap:8px; justify-content:center; flex-wrap:wrap; margin-top:13px;">
+            <span style="background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);border-radius:20px;padding:3px 14px;font-size:0.78em;font-weight:600;">{t("badge_cnls")}</span>
+            <span style="background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);border-radius:20px;padding:3px 14px;font-size:0.78em;font-weight:600;">{t("badge_xgb")}</span>
+            <span style="background:rgba(39,174,96,0.35);border:1px solid rgba(39,174,96,0.6);border-radius:20px;padding:3px 14px;font-size:0.78em;font-weight:600;">{t("badge_recall")}</span>
+            <span style="background:rgba(52,152,219,0.35);border:1px solid rgba(52,152,219,0.6);border-radius:20px;padding:3px 14px;font-size:0.78em;font-weight:600;">{t("badge_auc")}</span>
+        </div>
+    </div>
+    <img src="data:image/png;base64,{issea_b64}" height="130"
+         style="border-radius:12px; box-shadow:0 6px 20px rgba(0,0,0,0.40); flex-shrink:0; object-fit:contain;">
+</div>
+""", unsafe_allow_html=True)
+
+# ─────────────────────────────────────────────────────────────────────────────
+# MAPPINGS INTERNES (valeurs d'entraînement — NE PAS MODIFIER)
+# ─────────────────────────────────────────────────────────────────────────────
+FOSA_INTERNAL = {
+    "Public": "Public",
+    "Privé confessionnel": "Privé confessionnel",
+    "Privé laïc": "Privé laic",            # pas de ï dans les données
+    "Faith-based Private": "Privé confessionnel",
+    "Secular Private": "Privé laic",
+}
+OBSERVANCE_INTERNAL = {
+    "Bonne": "Bonne",  "Modérée": "Modérée",  "Médiocre": "Mediocre",  # pas de é
+    "Good": "Bonne",   "Moderate": "Modérée",  "Poor": "Mediocre",
+}
+
+REGION_EN2FR  = dict(zip(T["region_opts"]["en"],       T["region_opts"]["fr"]))
+AGE_EN2FR     = dict(zip(T["tranche_age_opts"]["en"],  T["tranche_age_opts"]["fr"]))
+ETUDE_EN2FR   = dict(zip(T["niveau_etude_opts"]["en"], T["niveau_etude_opts"]["fr"]))
+STATUT_EN2FR  = dict(zip(T["statut_mat_opts"]["en"],   T["statut_mat_opts"]["fr"]))
+DSD_EN2FR     = dict(zip(T["dsd_opts"]["en"],          T["dsd_opts"]["fr"]))
+PROTO_EN2FR   = dict(zip(T["protocole_opts"]["en"],    T["protocole_opts"]["fr"]))
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# PIPELINE (identique au notebook)
+# ─────────────────────────────────────────────────────────────────────────────
+def get_dummies_fixed(df: pd.DataFrame) -> pd.DataFrame:
+    cats = ["Tranche_Age","Sexe","Niveau_Etude","Statut_Matrimonial",
+            "Region","Type_FOSA","Soutien_PEPFAR","Milieu_Residence",
+            "Observance_4j","Activite_Remuneree","DSD_Recode","Protocole_Recode"]
+    df_dum = pd.get_dummies(df, columns=cats, dtype=int)
+    refs   = ["Tranche_Age_25 à 49 Ans","Sexe_Féminin","Niveau_Etude_Primaire",
+              "Statut_Matrimonial_Marié(e) en monogamie","Region_Centre",
+              "Type_FOSA_Public","Soutien_PEPFAR_Non","Milieu_Residence_Urbain",
+              "Observance_4j_Bonne","Activite_Remuneree_Non",
+              "DSD_Recode_Standard (Suivi classique)","Protocole_Recode_TDF+3TC+DTG (TLD)"]
+    return df_dum.drop(columns=[c for c in refs if c in df_dum.columns])
+
+
+def predict(raw_fr: dict) -> float:
+    df     = pd.DataFrame([raw_fr])
+    dum    = get_dummies_fixed(df).reindex(columns=colonnes_train, fill_value=0)
+    scaled = pd.DataFrame(scaler.transform(dum), columns=colonnes_train)
+    return float(model.predict_proba(scaled)[0][1])
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# GAUGE SVG SEMI-CIRCULAIRE
+# ─────────────────────────────────────────────────────────────────────────────
+def svg_gauge(prob: float, color: str) -> str:
+    W, H   = 360, 218
+    cx, cy = 180, 182
+    R, r   = 138, 98
+
+    def pt(deg, radius):
+        rad = math.radians(deg)
+        return cx + radius * math.cos(rad), cy - radius * math.sin(rad)
+
+    def ring(d1, d2, fill, stroke):
+        ox1, oy1 = pt(d1, R); ox2, oy2 = pt(d2, R)
+        ix1, iy1 = pt(d1, r); ix2, iy2 = pt(d2, r)
+        la = 1 if abs(d1 - d2) > 180 else 0
+        d = (f"M{ox1:.2f} {oy1:.2f} A{R} {R} 0 {la} 0 {ox2:.2f} {oy2:.2f} "
+             f"L{ix2:.2f} {iy2:.2f} A{r} {r} 0 {la} 1 {ix1:.2f} {iy1:.2f}Z")
+        return f'<path d="{d}" fill="{fill}" stroke="{stroke}" stroke-width="1.8" stroke-linejoin="round"/>'
+
+    d_g = 180 - 0.30 * 180   # 126°
+    d_o = 180 - 0.50 * 180   # 90°
+    d_n = 180 - prob * 180    # aiguille
+
+    arcs = (ring(180, d_g, "#d5f5e3", "#27ae60")
+          + ring(d_g, d_o,  "#fef3e2", "#f39c12")
+          + ring(d_o, 0,    "#fadbd8", "#e74c3c"))
+
+    ticks = ""
+    for d in range(0, 181, 18):
+        mx1, my1 = pt(180 - d, R + 3)
+        mx2, my2 = pt(180 - d, R + 10)
+        ticks += f'<line x1="{mx1:.1f}" y1="{my1:.1f}" x2="{mx2:.1f}" y2="{my2:.1f}" stroke="#bbb" stroke-width="1.5"/>'
+
+    def zone_label(mid_deg, txt, col):
+        lx, ly = pt(mid_deg, R + 22)
+        return (f'<text x="{lx:.0f}" y="{ly:.0f}" '
+                f'font-family="Inter,sans-serif" font-size="11.5" font-weight="700" '
+                f'fill="{col}" text-anchor="middle">{txt}</text>')
+
+    labels = (zone_label(153, t("risk_low"),  "#27ae60")
+            + zone_label(108, t("risk_mod"),  "#d68910")
+            + zone_label(45,  t("risk_high"), "#e74c3c"))
+
+    tick_labels = ""
+    for deg, lbl, anchor in [(180,"0%","end"), (90,"50%","middle"), (0,"100%","start")]:
+        tx, ty = pt(deg, R + 36)
+        tick_labels += (f'<text x="{tx:.0f}" y="{ty:.0f}" '
+                        f'font-family="Inter,sans-serif" font-size="9.5" '
+                        f'fill="#aaa" text-anchor="{anchor}">{lbl}</text>')
+
+    nx, ny   = pt(d_n, r - 6)
+    nxb, nyb = pt(d_n + 90, 12)
+    nxc, nyc = pt(d_n - 90, 12)
+    needle = (f'<polygon points="{nx:.1f},{ny:.1f} {nxb:.1f},{nyb:.1f} {nxc:.1f},{nyc:.1f}" '
+              f'fill="{color}" opacity="0.95"/>')
+    hub    = (f'<circle cx="{cx}" cy="{cy}" r="11" fill="{color}"/>'
+              f'<circle cx="{cx}" cy="{cy}" r="5.5" fill="white"/>')
+
+    pct = (f'<text x="{cx}" y="{cy+36}" font-family="Inter,sans-serif" '
+           f'font-size="34" font-weight="800" fill="{color}" text-anchor="middle">{prob:.1%}</text>')
+    sub = (f'<text x="{cx}" y="{cy+54}" font-family="Inter,sans-serif" '
+           f'font-size="10" fill="#999" text-anchor="middle">{t("prob_label")}</text>')
+
+    return (f'<div style="text-align:center">'
+            f'<svg viewBox="0 0 {W} {H}" xmlns="http://www.w3.org/2000/svg" '
+            f'style="width:100%;max-width:390px;display:inline-block;">'
+            f'{arcs}{ticks}{tick_labels}{labels}{needle}{hub}{pct}{sub}</svg></div>')
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# GRAPHIQUE IMPORTANCE
+# ─────────────────────────────────────────────────────────────────────────────
+LABELS_MAP = {
+    "Observance_4j_Mediocre":                       {"fr":"Observance médiocre (4j)",        "en":"Poor adherence (4 days)"},
+    "Observance_4j_Modérée":                        {"fr":"Observance modérée (4j)",          "en":"Moderate adherence (4 days)"},
+    "Type_FOSA_Privé laic":                         {"fr":"FOSA — Privé laïc",                "en":"Facility — Secular Private"},
+    "Type_FOSA_Privé confessionnel":                {"fr":"FOSA — Privé confessionnel",       "en":"Facility — Faith-based"},
+    "Soutien_PEPFAR_Oui":                           {"fr":"Soutien PEPFAR",                   "en":"PEPFAR support"},
+    "Milieu_Residence_Rural":                       {"fr":"Milieu rural",                     "en":"Rural setting"},
+    "Sexe_Masculin":                                {"fr":"Sexe masculin",                    "en":"Male sex"},
+    "Activite_Remuneree_Oui":                       {"fr":"Activité rémunérée",               "en":"Paid activity"},
+    "DSD_Recode_Dispensation communautaire / VAD":  {"fr":"Dispensation communautaire",       "en":"Community dispensation"},
+    "Protocole_Recode_TDF+3TC+EFV (TELE/TLE)":     {"fr":"Protocole TELE/TLE",               "en":"TELE/TLE protocol"},
+    "Protocole_Recode_Protocoles avec IP (ATV/r)":  {"fr":"Protocole IP (ATV/r)",             "en":"PI-based (ATV/r)"},
+    "Protocole_Recode_Autre / Non spécifié":        {"fr":"Protocole autre",                  "en":"Other protocol"},
+    "Statut_Matrimonial_Célibataire":               {"fr":"Célibataire",                      "en":"Single"},
+    "Statut_Matrimonial_Veuf (ve)":                 {"fr":"Veuf(ve)",                         "en":"Widowed"},
+    "Statut_Matrimonial_En union libre/concubinage":{"fr":"Union libre",                      "en":"Cohabiting"},
+    "Statut_Matrimonial_Marié(e) en polygamie":     {"fr":"Polygamie",                        "en":"Polygamous"},
+    "Niveau_Etude_Supérieur":                       {"fr":"Niveau supérieur",                 "en":"Higher education"},
+    "Niveau_Etude_Jamais fréquenté":                {"fr":"Jamais scolarisé",                 "en":"Never schooled"},
+    "Niveau_Etude_Secondaire Premier Cycle":         {"fr":"Secondaire 1er cycle",             "en":"Lower secondary"},
+    "Niveau_Etude_Secondaire Second Cycle":          {"fr":"Secondaire 2ᵉ cycle",              "en":"Upper secondary"},
+    "Tranche_Age_18 à 20 Ans":                      {"fr":"Âge 18–20 ans",                    "en":"Age 18–20 yrs"},
+    "Tranche_Age_21 à 24 Ans":                      {"fr":"Âge 21–24 ans",                    "en":"Age 21–24 yrs"},
+    "Tranche_Age_50 ans et plus":                   {"fr":"Âge ≥ 50 ans",                     "en":"Age ≥ 50 yrs"},
+}
+
+
+def draw_importance(top_n: int = 10) -> plt.Figure:
+    imp  = model.feature_importances_
+    feat = pd.DataFrame({"Variable": colonnes_train, "Importance": imp})
+    feat = feat.sort_values("Importance", ascending=False).head(top_n).sort_values("Importance")
+
+    def get_label(var):
+        entry = LABELS_MAP.get(var)
+        if entry:
+            return entry[L]
+        return var.replace("Region_", ("Région : " if L=="fr" else "Region: ")).replace("_", " ")
+
+    feat["Label"] = feat["Variable"].apply(get_label)
+    n      = len(feat)
+    COLORS = ["#2980b9","#2980b9","#27ae60","#27ae60","#f39c12",
+               "#f39c12","#e67e22","#e74c3c","#c0392b","#922b21"]
+    colors = COLORS[::-1][:n][::-1]
+
+    fig, ax = plt.subplots(figsize=(7.2, 4.2))
+    fig.patch.set_facecolor("#ffffff")
+    ax.set_facecolor("#f7faff")
+    bars = ax.barh(feat["Label"], feat["Importance"],
+                   color=colors, height=0.60, edgecolor="#fff", linewidth=0.6)
+    for bar, val in zip(bars, feat["Importance"]):
+        ax.text(bar.get_width() + 0.0007, bar.get_y() + bar.get_height() / 2,
+                f"{val:.4f}", va="center", ha="left", fontsize=8.5, color="#444", fontweight="500")
+    ax.set_xlabel(t("imp_xlabel"), fontsize=8.5, color="#666")
+    ax.set_title(t("imp_title").format(top_n), fontsize=10.5,
+                 fontweight="700", color="#0b2d52", pad=12)
+    ax.set_xlim(0, feat["Importance"].max() * 1.22)
+    ax.tick_params(axis="y", labelsize=9, colors="#333", length=0)
+    ax.tick_params(axis="x", labelsize=8, colors="#888")
+    for sp in ["top", "right"]: ax.spines[sp].set_visible(False)
+    ax.spines["left"].set_color("#e0e8f4")
+    ax.spines["bottom"].set_color("#e0e8f4")
+    ax.grid(axis="x", linestyle="--", alpha=0.4, color="#cce")
+    plt.tight_layout(pad=0.9)
+    return fig
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# FORMULAIRE
+# ─────────────────────────────────────────────────────────────────────────────
+st.markdown(f"""
+<div style="background:#fff;border-radius:14px;padding:18px 22px 6px 22px;
+     margin-bottom:4px;box-shadow:0 2px 10px rgba(0,0,0,0.06);border-top:4px solid #1a5e8a;">
+  <div style="font-size:1.02em;font-weight:700;color:#0b2d52;">{t("form_intro")}</div>
+  <div style="font-size:0.84em;color:#777;margin-top:3px;">{t("form_sub")}</div>
+</div>
+""", unsafe_allow_html=True)
+
+with st.form("patient_form", clear_on_submit=False):
+    col1, col2, col3 = st.columns(3, gap="medium")
+
+    with col1:
+        st.markdown(
+            f'<div style="font-size:0.82em;font-weight:700;color:#1a5e8a;'
+            f'text-transform:uppercase;letter-spacing:1px;padding:8px 0 6px 0;'
+            f'border-bottom:2px solid #d0e4f7;margin-bottom:12px;">'
+            f'{t("sec_loc")}</div>', unsafe_allow_html=True)
+        region    = st.selectbox(t("region"),    T["region_opts"][L],    key=f"{L}_region")
+        type_fosa = st.selectbox(t("type_fosa"), T["type_fosa_opts"][L], key=f"{L}_fosa")
+        pepfar    = st.radio(t("pepfar"),  [t("non"), t("oui")], horizontal=True, key=f"{L}_pepfar")
+        milieu    = st.radio(t("milieu"),  [t("urbain"), t("rural")], horizontal=True, key=f"{L}_milieu")
+
+    with col2:
+        st.markdown(
+            f'<div style="font-size:0.82em;font-weight:700;color:#0d7a5c;'
+            f'text-transform:uppercase;letter-spacing:1px;padding:8px 0 6px 0;'
+            f'border-bottom:2px solid #c3e8da;margin-bottom:12px;">'
+            f'{t("sec_socio")}</div>', unsafe_allow_html=True)
+        sexe         = st.radio(t("sexe"),         [t("feminin"), t("masculin")], horizontal=True, key=f"{L}_sexe")
+        tranche_age  = st.selectbox(t("tranche_age"),  T["tranche_age_opts"][L],  key=f"{L}_age")
+        niveau_etude = st.selectbox(t("niveau_etude"), T["niveau_etude_opts"][L], key=f"{L}_etude")
+        statut_mat   = st.selectbox(t("statut_mat"),   T["statut_mat_opts"][L],   key=f"{L}_statut")
+
+    with col3:
+        st.markdown(
+            f'<div style="font-size:0.82em;font-weight:700;color:#6c3483;'
+            f'text-transform:uppercase;letter-spacing:1px;padding:8px 0 6px 0;'
+            f'border-bottom:2px solid #e8d5f5;margin-bottom:12px;">'
+            f'{t("sec_thera")}</div>', unsafe_allow_html=True)
+        activite   = st.radio(t("activite"),   [t("non"), t("oui")], horizontal=True, key=f"{L}_activite")
+        observance = st.selectbox(t("observance"),  T["observance_opts"][L], key=f"{L}_observance")
+        dsd        = st.selectbox(t("dsd"),         T["dsd_opts"][L],        key=f"{L}_dsd")
+        protocole  = st.selectbox(t("protocole"),   T["protocole_opts"][L],  key=f"{L}_protocole")
+
+    st.markdown("<br>", unsafe_allow_html=True)
+    submitted = st.form_submit_button(t("btn_calc"), use_container_width=True, type="primary")
+
+# ─────────────────────────────────────────────────────────────────────────────
+# RÉSULTATS
+# ─────────────────────────────────────────────────────────────────────────────
+if submitted:
+    # Convertir en valeurs internes (FR identiques à l'entraînement)
+    region_fr    = REGION_EN2FR.get(region, region)              if L == "en" else region
+    type_fosa_fr = FOSA_INTERNAL[type_fosa]
+    pepfar_fr    = "Oui" if pepfar == t("oui") else "Non"
+    milieu_fr    = "Urbain" if milieu == t("urbain") else "Rural"
+    sexe_fr      = "Masculin" if sexe == t("masculin") else "Féminin"
+    tranche_fr   = AGE_EN2FR.get(tranche_age, tranche_age)       if L == "en" else tranche_age
+    etude_fr     = ETUDE_EN2FR.get(niveau_etude, niveau_etude)   if L == "en" else niveau_etude
+    statut_fr    = STATUT_EN2FR.get(statut_mat, statut_mat)      if L == "en" else statut_mat
+    activite_fr  = "Oui" if activite == t("oui") else "Non"
+    observ_fr    = OBSERVANCE_INTERNAL[observance]
+    dsd_fr       = DSD_EN2FR.get(dsd, dsd)                       if L == "en" else dsd
+    proto_fr     = PROTO_EN2FR.get(protocole, protocole)         if L == "en" else protocole
+
+    raw_fr = {
+        "Tranche_Age":        tranche_fr,
+        "Sexe":               sexe_fr,
+        "Niveau_Etude":       etude_fr,
+        "Statut_Matrimonial": statut_fr,
+        "Region":             region_fr,
+        "Type_FOSA":          type_fosa_fr,
+        "Soutien_PEPFAR":     pepfar_fr,
+        "Milieu_Residence":   milieu_fr,
+        "Observance_4j":      observ_fr,
+        "Activite_Remuneree": activite_fr,
+        "DSD_Recode":         dsd_fr,
+        "Protocole_Recode":   proto_fr,
+    }
+
+    with st.spinner(t("spinner")):
+        prob = predict(raw_fr)
+
+    if prob < 0.30:
+        niveau, color        = t("risk_low_lbl"),  "#27ae60"
+        emoji_r              = "🟢"
+        bg_card, bd_card     = "#eafaf1", "#27ae60"
+        bg_reco, bd_reco, tc = "#eafaf1", "#27ae60", "#1e5f3a"
+        reco = t("reco_low")
+    elif prob < SEUIL:
+        niveau, color        = t("risk_mod_lbl"),  "#e67e22"
+        emoji_r              = "🟠"
+        bg_card, bd_card     = "#fef5e7", "#f39c12"
+        bg_reco, bd_reco, tc = "#fef9e7", "#f39c12", "#784212"
+        reco = t("reco_mod")
+    else:
+        niveau, color        = t("risk_high_lbl"), "#e74c3c"
+        emoji_r              = "🔴"
+        bg_card, bd_card     = "#fdedec", "#e74c3c"
+        bg_reco, bd_reco, tc = "#fdedec", "#e74c3c", "#7b241c"
+        reco = t("reco_high")
+
+    risk_word = "RISQUE" if L == "fr" else "RISK"
+
+    st.markdown(
+        f'<div class="res-divider"><hr><span>{t("res_divider")}</span><hr></div>',
+        unsafe_allow_html=True,
+    )
+
+    col_g, col_r = st.columns([1, 1.45], gap="large")
+
+    with col_g:
+        st.markdown(svg_gauge(prob, color), unsafe_allow_html=True)
+        st.markdown(f"""
+        <div style="background:{bg_card};border-radius:14px;border:2px solid {bd_card};
+             padding:18px 20px;text-align:center;margin-top:12px;
+             box-shadow:0 4px 16px {bd_card}33;">
+            <div style="font-size:0.78em;font-weight:800;letter-spacing:2.5px;
+                 text-transform:uppercase;color:{color};margin-bottom:4px;">
+                {emoji_r} &nbsp; {risk_word} {niveau}
+            </div>
+            <div style="font-size:3em;font-weight:900;color:{color};line-height:1.1;">
+                {prob:.1%}
+            </div>
+            <div style="font-size:0.8em;color:#777;margin-top:4px;">
+                {t("seuil_txt")} : {SEUIL:.0%} — XGBoost
+            </div>
+        </div>
+        <div style="background:{bg_reco};border-left:5px solid {bd_reco};
+             border-radius:0 10px 10px 0;padding:14px 16px;
+             margin-top:10px;font-size:0.88em;line-height:1.6;color:{tc};">
+            <strong>{t("reco_lbl")}</strong><br>{reco}
+        </div>
+        """, unsafe_allow_html=True)
+
+    with col_r:
+        st.markdown(
+            f'<div style="font-size:0.83em;color:#777;margin-bottom:6px;">{t("imp_sub")}</div>',
+            unsafe_allow_html=True,
+        )
+        st.pyplot(draw_importance(10), use_container_width=True)
+        st.markdown(
+            f'<div style="font-size:0.78em;color:#888;margin-top:2px;text-align:center;">'
+            f'{t("imp_legend")}</div>',
+            unsafe_allow_html=True,
+        )
+
+        with st.expander(t("recap_title")):
+            var_labels = {
+                "fr": ["Région","Type de FOSA","Soutien PEPFAR","Milieu de résidence",
+                       "Sexe","Tranche d'âge","Niveau d'étude","Statut matrimonial",
+                       "Activité rémunérée","Observance (4j)","Mode DSD","Protocole ARV"],
+                "en": ["Region","Health Facility Type","PEPFAR Support","Residence Setting",
+                       "Sex","Age Group","Education Level","Marital Status",
+                       "Paid Activity","Adherence (4 days)","DSD Mode","ART Protocol"],
+            }
+            recap = pd.DataFrame({
+                t("recap_var"): var_labels[L],
+                t("recap_val"): [region, type_fosa, pepfar, milieu,
+                                 sexe, tranche_age, niveau_etude, statut_mat,
+                                 activite, observance, dsd, protocole],
+            })
+            st.dataframe(recap, use_container_width=True, hide_index=True)
+
+# ─────────────────────────────────────────────────────────────────────────────
+# PIED DE PAGE
+# ─────────────────────────────────────────────────────────────────────────────
+st.markdown(f'<div class="footer">{t("footer")}</div>', unsafe_allow_html=True)
