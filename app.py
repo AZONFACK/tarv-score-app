@@ -8,12 +8,14 @@
 import base64
 import json
 import math
+from datetime import datetime
 from pathlib import Path
 
 import joblib
 import matplotlib.pyplot as plt
 import pandas as pd
 import streamlit as st
+from fpdf import FPDF
 
 # ─────────────────────────────────────────────────────────────────────────────
 # CONFIG PAGE
@@ -244,7 +246,9 @@ html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
 section[data-testid="stSidebar"] {
     background: linear-gradient(180deg, #0b2d52 0%, #1a5e8a 55%, #0d7a5c 100%);
 }
-section[data-testid="stSidebar"] * { color: #ddeeff !important; }
+section[data-testid="stSidebar"] p,
+section[data-testid="stSidebar"] span,
+section[data-testid="stSidebar"] div { color: #ddeeff; }
 section[data-testid="stSidebar"] h1,
 section[data-testid="stSidebar"] h2,
 section[data-testid="stSidebar"] h3 { color: #ffffff !important; font-weight: 700 !important; }
@@ -363,16 +367,22 @@ with st.sidebar:
 
     st.divider()
     st.markdown(f"### {t('grid_title')}")
-    for emoji, key_lbl, key_desc, color in [
-        ("🟢", "risk_low",  "risk_low_desc",  "#d5f5e3"),
-        ("🟠", "risk_mod",  "risk_mod_desc",  "#fdebd0"),
-        ("🔴", "risk_high", "risk_high_desc", "#fadbd8"),
+    grid_intro = ("Le score est interprété selon 3 niveaux de risque :"
+                  if L == "fr" else
+                  "The score is interpreted across 3 risk levels:")
+    st.markdown(f'<p style="font-size:0.82em;opacity:0.8;margin-bottom:8px;">{grid_intro}</p>',
+                unsafe_allow_html=True)
+    for emoji, key_lbl, key_desc, border_col, bg_col, txt_col in [
+        ("🟢", "risk_low",  "risk_low_desc",  "#27ae60", "rgba(39,174,96,0.18)",  "#90ffb0"),
+        ("🟠", "risk_mod",  "risk_mod_desc",  "#f39c12", "rgba(243,156,18,0.18)", "#ffd580"),
+        ("🔴", "risk_high", "risk_high_desc", "#e74c3c", "rgba(231,76,60,0.18)",  "#ffaaaa"),
     ]:
         st.markdown(
-            f'<div style="background:{color};border-radius:8px;padding:8px 12px;'
-            f'margin-bottom:6px;font-size:0.88em;">'
-            f'<strong>{emoji} {t(key_lbl)}</strong><br>'
-            f'<span style="color:#555;">{t(key_desc)}</span></div>',
+            f'<div style="border-left:4px solid {border_col};background:{bg_col};'
+            f'border-radius:0 8px 8px 0;padding:9px 12px;margin-bottom:7px;">'
+            f'<div style="color:{txt_col};font-weight:700;font-size:0.9em;">{emoji} {t(key_lbl)}</div>'
+            f'<div style="color:rgba(255,255,255,0.75);font-size:0.8em;margin-top:2px;">{t(key_desc)}</div>'
+            f'</div>',
             unsafe_allow_html=True,
         )
 
@@ -604,6 +614,148 @@ def draw_importance(top_n: int = 10) -> plt.Figure:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# GÉNÉRATION PDF
+# ─────────────────────────────────────────────────────────────────────────────
+def safe(text: str) -> str:
+    """Encode le texte en latin-1 pour fpdf2 (gère les accents français)."""
+    return text.encode('latin-1', 'replace').decode('latin-1')
+
+
+def generate_pdf(patient_vals: list, prob: float, niveau: str,
+                 reco: str, lang: str, cnls_path: Path, issea_path: Path) -> bytes:
+    """Génère une fiche PDF patient prête à imprimer."""
+
+    if prob < 0.30:
+        r, g, b       = 39, 174, 96
+        bg_r, bg_g, bg_b = 213, 245, 227
+    elif prob < 0.50:
+        r, g, b       = 230, 126, 34
+        bg_r, bg_g, bg_b = 254, 243, 226
+    else:
+        r, g, b       = 231, 76, 60
+        bg_r, bg_g, bg_b = 253, 237, 236
+
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_auto_page_break(auto=True, margin=18)
+
+    # ── En-tête ──────────────────────────────────────────────────────────────
+    pdf.set_fill_color(11, 45, 82)
+    pdf.rect(0, 0, 210, 44, 'F')
+
+    # Logos
+    try:
+        pdf.image(str(cnls_path),  x=8,  y=4,  h=36)
+        pdf.image(str(issea_path), x=172, y=4, h=36)
+    except Exception:
+        pass
+
+    pdf.set_text_color(255, 255, 255)
+    pdf.set_font('Helvetica', 'B', 13)
+    pdf.set_xy(50, 7)
+    pdf.cell(110, 7, safe('TARV-Score — Fiche de Scoring Clinique'), align='C', ln=True)
+    pdf.set_font('Helvetica', '', 8)
+    pdf.set_xy(50, 17)
+    lbl_sub = ("Outil de Detection du Risque d'Interruption au TARV chez les PVVIH au Cameroun"
+               if lang == 'fr' else
+               "Risk of ART Interruption Detection Tool among PLHIV in Cameroon")
+    pdf.cell(110, 5, safe(lbl_sub), align='C', ln=True)
+    pdf.set_xy(50, 25)
+    pdf.cell(110, 5, safe('CNLS / GTC Cameroun | ISSEA-CEMAC 2025-2026'), align='C', ln=True)
+    pdf.set_xy(50, 33)
+    pdf.set_font('Helvetica', 'I', 7)
+    pdf.cell(110, 5, safe('XGBoost | Rappel : 83,8 % | AUC-ROC : 0,704 | Seuil : 50 %'), align='C')
+
+    # ── Date d'évaluation ────────────────────────────────────────────────────
+    pdf.set_text_color(100, 100, 100)
+    pdf.set_font('Helvetica', '', 8)
+    pdf.set_xy(10, 50)
+    date_lbl = "Date d'evaluation" if lang == 'fr' else "Evaluation date"
+    pdf.cell(0, 5, safe(f'{date_lbl} : {datetime.now().strftime("%d/%m/%Y  %H:%M")}'))
+
+    # ── Score de risque ───────────────────────────────────────────────────────
+    pdf.set_xy(10, 60)
+    pdf.set_fill_color(bg_r, bg_g, bg_b)
+    pdf.set_draw_color(r, g, b)
+    pdf.set_line_width(0.8)
+    pdf.rect(10, 60, 190, 30, 'FD')
+
+    pdf.set_text_color(r, g, b)
+    pdf.set_font('Helvetica', 'B', 28)
+    pdf.set_xy(10, 64)
+    pdf.cell(95, 12, f'{prob:.1%}', align='C')
+
+    pdf.set_font('Helvetica', 'B', 18)
+    pdf.set_xy(105, 64)
+    risk_word = 'RISQUE' if lang == 'fr' else 'RISK'
+    pdf.cell(95, 12, safe(f'{risk_word} {niveau}'), align='C')
+
+    pdf.set_text_color(120, 120, 120)
+    pdf.set_font('Helvetica', '', 8)
+    pdf.set_xy(10, 80)
+    seuil_txt = ('Seuil de classification : 50 % — Modele XGBoost'
+                 if lang == 'fr' else
+                 'Classification threshold: 50% — XGBoost model')
+    pdf.cell(190, 5, safe(seuil_txt), align='C')
+
+    # ── Profil du patient ─────────────────────────────────────────────────────
+    pdf.set_text_color(11, 45, 82)
+    pdf.set_font('Helvetica', 'B', 11)
+    pdf.set_xy(10, 96)
+    pdf.cell(0, 7, safe('Profil du Patient' if lang == 'fr' else 'Patient Profile'), ln=True)
+
+    # En-tête tableau
+    pdf.set_fill_color(11, 45, 82)
+    pdf.set_text_color(255, 255, 255)
+    pdf.set_font('Helvetica', 'B', 9)
+    pdf.set_xy(10, 104)
+    pdf.cell(85, 7, safe('Variable'), border=1, fill=True, align='C')
+    pdf.cell(105, 7, safe('Valeur' if lang == 'fr' else 'Value'), border=1, fill=True, align='C', ln=True)
+
+    # Lignes tableau
+    var_labels = {
+        'fr': ['Region', "Type de FOSA", 'Soutien PEPFAR', 'Milieu de residence',
+               'Sexe', "Tranche d'age", "Niveau d'etude", 'Statut matrimonial',
+               'Activite remuneree', 'Observance (4 jours)', 'Mode DSD', 'Protocole ARV'],
+        'en': ['Region', 'Health Facility Type', 'PEPFAR Support', 'Residence Setting',
+               'Sex', 'Age Group', 'Education Level', 'Marital Status',
+               'Paid Activity', 'Adherence (4 days)', 'DSD Mode', 'ART Protocol'],
+    }
+    pdf.set_line_width(0.3)
+    for i, (var, val) in enumerate(zip(var_labels[lang], patient_vals)):
+        pdf.set_fill_color(240, 245, 255) if i % 2 == 0 else pdf.set_fill_color(255, 255, 255)
+        pdf.set_text_color(40, 40, 40)
+        pdf.set_font('Helvetica', '', 8.5)
+        pdf.cell(85, 6, safe(str(var)), border=1, fill=True)
+        pdf.cell(105, 6, safe(str(val)), border=1, fill=True, ln=True)
+
+    # ── Recommandation ────────────────────────────────────────────────────────
+    pdf.ln(5)
+    pdf.set_text_color(11, 45, 82)
+    pdf.set_font('Helvetica', 'B', 10)
+    reco_lbl = 'Recommandation clinique' if lang == 'fr' else 'Clinical Recommendation'
+    pdf.cell(0, 7, safe(reco_lbl), ln=True)
+
+    pdf.set_fill_color(bg_r, bg_g, bg_b)
+    pdf.set_draw_color(r, g, b)
+    pdf.set_line_width(0.8)
+    pdf.set_text_color(50, 50, 50)
+    pdf.set_font('Helvetica', '', 8.5)
+    pdf.multi_cell(190, 5.5, safe(reco), border=1, fill=True)
+
+    # ── Pied de page ──────────────────────────────────────────────────────────
+    pdf.set_y(-15)
+    pdf.set_font('Helvetica', 'I', 7)
+    pdf.set_text_color(160, 160, 160)
+    disc = ("Outil d'aide a la decision. Ne remplace pas le jugement clinique du prestataire de sante."
+            if lang == 'fr' else
+            "Decision-support tool. Does not replace the clinical judgment of the healthcare provider.")
+    pdf.cell(0, 5, safe(disc), align='C')
+
+    return bytes(pdf.output())
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # FORMULAIRE
 # ─────────────────────────────────────────────────────────────────────────────
 st.markdown(f"""
@@ -769,6 +921,39 @@ if submitted:
                                  activite, observance, dsd, protocole],
             })
             st.dataframe(recap, use_container_width=True, hide_index=True)
+
+    # ── Bouton export PDF ─────────────────────────────────────────────────────
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown(
+        f'<div style="background:#fff;border-radius:12px;padding:16px 20px;'
+        f'border:2px dashed #1a5e8a;text-align:center;margin-top:8px;">'
+        f'<div style="font-size:0.9em;font-weight:600;color:#0b2d52;margin-bottom:10px;">'
+        f'{"📄 Télécharger la fiche patient (PDF imprimable)" if L=="fr" else "📄 Download patient report (printable PDF)"}'
+        f'</div></div>',
+        unsafe_allow_html=True,
+    )
+    patient_vals = [region, type_fosa, pepfar, milieu, sexe, tranche_age,
+                    niveau_etude, statut_mat, activite, observance, dsd, protocole]
+    try:
+        pdf_bytes = generate_pdf(
+            patient_vals=patient_vals,
+            prob=prob,
+            niveau=niveau,
+            reco=reco,
+            lang=L,
+            cnls_path=ASSETS / "cnls_logo.png",
+            issea_path=ASSETS / "issea_logo.png",
+        )
+        btn_lbl = "⬇️ Télécharger le PDF" if L == "fr" else "⬇️ Download PDF"
+        st.download_button(
+            label=btn_lbl,
+            data=pdf_bytes,
+            file_name=f"fiche_TARV_Score_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf",
+            mime="application/pdf",
+            use_container_width=True,
+        )
+    except Exception as e:
+        st.warning(f"PDF non disponible : {e}")
 
 # ─────────────────────────────────────────────────────────────────────────────
 # PIED DE PAGE

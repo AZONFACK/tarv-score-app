@@ -5,3 +5,4 @@ scikit-learn>=1.2.0
 xgboost>=1.7.0
 joblib>=1.2.0
 matplotlib>=3.6.0
+fpdf2>=2.7.0
