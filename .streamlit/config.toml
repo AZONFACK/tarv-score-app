@@ -1,0 +1,5 @@
+[magic]
+enabled = false
+
+[runner]
+magicEnabled = false
