@@ -756,9 +756,231 @@ def generate_pdf(patient_vals: list, prob: float, niveau: str,
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# FORMULAIRE
+# FONCTIONS IMPORT BATCH
 # ─────────────────────────────────────────────────────────────────────────────
-st.markdown(f"""
+
+# Colonnes attendues dans le fichier (valeurs internes FR)
+COLS_REQUIS = [
+    "Region", "Type_FOSA", "Soutien_PEPFAR", "Milieu_Residence",
+    "Sexe", "Tranche_Age", "Niveau_Etude", "Statut_Matrimonial",
+    "Activite_Remuneree", "Observance_4j", "DSD_Recode", "Protocole_Recode",
+]
+
+VALEURS_VALIDES = {
+    "Region":             ["Centre","Adamaoua","Est","Extrême-Nord","Littoral","Nord","Nord-Ouest","Ouest","Sud","Sud-Ouest"],
+    "Type_FOSA":          ["Public","Privé confessionnel","Privé laïc"],
+    "Soutien_PEPFAR":     ["Oui","Non"],
+    "Milieu_Residence":   ["Urbain","Rural"],
+    "Sexe":               ["Féminin","Masculin"],
+    "Tranche_Age":        ["25 à 49 Ans","18 à 20 Ans","21 à 24 Ans","50 ans et plus"],
+    "Niveau_Etude":       ["Primaire","Jamais fréquenté","Secondaire Premier Cycle","Secondaire Second Cycle","Supérieur"],
+    "Statut_Matrimonial": ["Marié(e) en monogamie","Célibataire","En union libre/concubinage","Marié(e) en polygamie","En séparation de corps / Divorcée","Veuf (ve)"],
+    "Activite_Remuneree": ["Oui","Non"],
+    "Observance_4j":      ["Bonne","Modérée","Médiocre"],
+    "DSD_Recode":         ["Standard (Suivi classique)","Dispensation communautaire / VAD"],
+    "Protocole_Recode":   ["TDF+3TC+DTG (TLD)","TDF+3TC+EFV (TELE/TLE)","Protocoles avec IP (ATV/r)","Autre / Non spécifié"],
+}
+
+
+def generate_template() -> bytes:
+    """Génère un fichier Excel modèle avec les colonnes et valeurs valides."""
+    import io
+    import openpyxl
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    from openpyxl.utils import get_column_letter
+
+    wb = openpyxl.Workbook()
+
+    # ── Feuille 1 : données ──────────────────────────────────────────────────
+    ws = wb.active
+    ws.title = "Données patients"
+
+    header_fill  = PatternFill("solid", fgColor="0B2D52")
+    header_font  = Font(color="FFFFFF", bold=True, size=10)
+    border_side  = Side(style="thin", color="CCCCCC")
+    cell_border  = Border(left=border_side, right=border_side, top=border_side, bottom=border_side)
+
+    # Colonne ID patient + 12 variables
+    headers = ["ID_Patient"] + COLS_REQUIS
+    for c, h in enumerate(headers, 1):
+        cell = ws.cell(row=1, column=c, value=h)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        cell.border = cell_border
+        ws.column_dimensions[get_column_letter(c)].width = 22
+
+    # Exemple de ligne
+    exemple = ["P001", "Centre", "Public", "Oui", "Urbain", "Féminin",
+               "25 à 49 Ans", "Primaire", "Marié(e) en monogamie", "Non",
+               "Bonne", "Standard (Suivi classique)", "TDF+3TC+DTG (TLD)"]
+    for c, val in enumerate(exemple, 1):
+        cell = ws.cell(row=2, column=c, value=val)
+        cell.fill = PatternFill("solid", fgColor="EEF5FF")
+        cell.border = cell_border
+        cell.alignment = Alignment(horizontal="center")
+
+    ws.row_dimensions[1].height = 32
+
+    # ── Feuille 2 : valeurs valides ──────────────────────────────────────────
+    ws2 = wb.create_sheet("Valeurs valides")
+    ws2.cell(1, 1, "Variable").font = Font(bold=True, color="FFFFFF", size=10)
+    ws2.cell(1, 1).fill = header_fill
+    ws2.cell(1, 2, "Valeurs acceptées").font = Font(bold=True, color="FFFFFF", size=10)
+    ws2.cell(1, 2).fill = header_fill
+    ws2.column_dimensions["A"].width = 28
+    ws2.column_dimensions["B"].width = 80
+
+    row = 2
+    for var, vals in VALEURS_VALIDES.items():
+        ws2.cell(row, 1, var).font = Font(bold=True, color="0B2D52")
+        ws2.cell(row, 2, " | ".join(vals))
+        ws2.cell(row, 2).alignment = Alignment(wrap_text=True)
+        ws2.row_dimensions[row].height = 20
+        row += 1
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return buf.read()
+
+
+def normalize_fosa(val: str) -> str:
+    mapping = {"Privé laïc": "Privé laic", "Prive laic": "Privé laic",
+               "Prive confessionnel": "Privé confessionnel"}
+    return mapping.get(str(val).strip(), str(val).strip())
+
+
+def normalize_observance(val: str) -> str:
+    mapping = {"Médiocre": "Mediocre", "Mediocre": "Mediocre",
+               "Modérée": "Modérée", "Bonne": "Bonne",
+               "Poor": "Mediocre", "Moderate": "Modérée", "Good": "Bonne"}
+    return mapping.get(str(val).strip(), str(val).strip())
+
+
+def score_dataframe(df: pd.DataFrame) -> pd.DataFrame:
+    """Score tous les patients d'un DataFrame et retourne df enrichi."""
+    results = []
+    for _, row in df.iterrows():
+        try:
+            raw = {
+                "Tranche_Age":        str(row.get("Tranche_Age", "")).strip(),
+                "Sexe":               str(row.get("Sexe", "")).strip(),
+                "Niveau_Etude":       str(row.get("Niveau_Etude", "")).strip(),
+                "Statut_Matrimonial": str(row.get("Statut_Matrimonial", "")).strip(),
+                "Region":             str(row.get("Region", "")).strip(),
+                "Type_FOSA":          normalize_fosa(row.get("Type_FOSA", "")),
+                "Soutien_PEPFAR":     str(row.get("Soutien_PEPFAR", "")).strip(),
+                "Milieu_Residence":   str(row.get("Milieu_Residence", "")).strip(),
+                "Observance_4j":      normalize_observance(row.get("Observance_4j", "")),
+                "Activite_Remuneree": str(row.get("Activite_Remuneree", "")).strip(),
+                "DSD_Recode":         str(row.get("DSD_Recode", "")).strip(),
+                "Protocole_Recode":   str(row.get("Protocole_Recode", "")).strip(),
+            }
+            prob = predict(raw)
+            if prob < 0.30:
+                niv = "Faible / Low"
+            elif prob < 0.50:
+                niv = "Modéré / Moderate"
+            else:
+                niv = "Élevé / High"
+            results.append({"Probabilité (%)": round(prob * 100, 1), "Niveau de risque": niv, "Erreur": ""})
+        except Exception as e:
+            results.append({"Probabilité (%)": None, "Niveau de risque": "—", "Erreur": str(e)})
+
+    return pd.concat([df.reset_index(drop=True), pd.DataFrame(results)], axis=1)
+
+
+def generate_batch_pdf(df_res: pd.DataFrame, cnls_path: Path, issea_path: Path) -> bytes:
+    """PDF récapitulatif de tous les patients scorés."""
+    pdf = FPDF(orientation='L')   # paysage pour plus de colonnes
+    pdf.add_page()
+    pdf.set_auto_page_break(auto=True, margin=12)
+
+    # En-tête
+    pdf.set_fill_color(11, 45, 82)
+    pdf.rect(0, 0, 297, 30, 'F')
+    try:
+        pdf.image(str(cnls_path),  x=4,  y=2, h=26)
+        pdf.image(str(issea_path), x=263, y=2, h=26)
+    except Exception:
+        pass
+    pdf.set_text_color(255, 255, 255)
+    pdf.set_font('Helvetica', 'B', 14)
+    pdf.set_xy(40, 5)
+    pdf.cell(217, 8, safe('TARV-Score — Rapport de Scoring par Lot'), align='C', ln=True)
+    pdf.set_font('Helvetica', '', 8)
+    pdf.set_xy(40, 16)
+    pdf.cell(217, 5, safe(f'CNLS / GTC Cameroun | {datetime.now().strftime("%d/%m/%Y %H:%M")} | {len(df_res)} patients'), align='C')
+
+    # Statistiques résumé
+    pdf.set_xy(10, 36)
+    pdf.set_text_color(11, 45, 82)
+    pdf.set_font('Helvetica', 'B', 10)
+    n_tot  = len(df_res)
+    n_low  = (df_res["Niveau de risque"].str.startswith("Faible")).sum()
+    n_mod  = (df_res["Niveau de risque"].str.startswith("Mod")).sum()
+    n_high = (df_res["Niveau de risque"].str.startswith("El")).sum()
+    pdf.cell(0, 6, safe(f'Resume : {n_tot} patients | Faible : {n_low} | Modere : {n_mod} | Eleve : {n_high}'), ln=True)
+
+    # Tableau
+    pdf.ln(2)
+    cols_show = (["ID_Patient"] if "ID_Patient" in df_res.columns else []) + \
+                COLS_REQUIS[:6] + ["Probabilité (%)", "Niveau de risque"]
+    col_widths = [22] * len(cols_show)
+    if "ID_Patient" in cols_show:
+        col_widths[0] = 18
+    col_widths[-1] = 28
+    col_widths[-2] = 22
+
+    # En-tête tableau
+    pdf.set_fill_color(11, 45, 82)
+    pdf.set_text_color(255, 255, 255)
+    pdf.set_font('Helvetica', 'B', 7)
+    for col, w in zip(cols_show, col_widths):
+        pdf.cell(w, 7, safe(col[:18]), border=1, fill=True, align='C')
+    pdf.ln()
+
+    # Lignes
+    pdf.set_font('Helvetica', '', 7)
+    for i, (_, row) in enumerate(df_res.iterrows()):
+        niv = str(row.get("Niveau de risque", ""))
+        if niv.startswith("El"):
+            pdf.set_fill_color(253, 237, 236)
+            pdf.set_text_color(180, 40, 30)
+        elif niv.startswith("Mod"):
+            pdf.set_fill_color(254, 243, 226)
+            pdf.set_text_color(160, 80, 10)
+        else:
+            pdf.set_fill_color(213, 245, 227) if i % 2 == 0 else pdf.set_fill_color(240, 255, 245)
+            pdf.set_text_color(30, 100, 60)
+
+        for col, w in zip(cols_show, col_widths):
+            val = str(row.get(col, ""))[:20]
+            pdf.cell(w, 6, safe(val), border=1, fill=True, align='C')
+        pdf.ln()
+
+    # Pied de page
+    pdf.set_y(-12)
+    pdf.set_font('Helvetica', 'I', 7)
+    pdf.set_text_color(160, 160, 160)
+    pdf.cell(0, 5, safe("Outil d'aide a la decision — Ne remplace pas le jugement clinique | TARV-Score | ISSEA-CEMAC 2025-2026"), align='C')
+
+    return bytes(pdf.output())
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ONGLETS PRINCIPAUX
+# ─────────────────────────────────────────────────────────────────────────────
+tab_lbl1 = "📝 Saisie individuelle" if L == "fr" else "📝 Individual entry"
+tab_lbl2 = "📂 Import fichier (Excel / CSV)" if L == "fr" else "📂 File import (Excel / CSV)"
+tab1, tab2 = st.tabs([tab_lbl1, tab_lbl2])
+
+# ══════════════════════════════════════════════════════════════════════════════
+with tab1:
+# ══════════════════════════════════════════════════════════════════════════════
+
+    st.markdown(f"""
 <div style="background:#fff;border-radius:14px;padding:18px 22px 6px 22px;
      margin-bottom:4px;box-shadow:0 2px 10px rgba(0,0,0,0.06);border-top:4px solid #1a5e8a;">
   <div style="font-size:1.02em;font-weight:700;color:#0b2d52;">{t("form_intro")}</div>
@@ -954,6 +1176,159 @@ if submitted:
         )
     except Exception as e:
         st.warning(f"PDF non disponible : {e}")
+
+# ══════════════════════════════════════════════════════════════════════════════
+with tab2:
+# ══════════════════════════════════════════════════════════════════════════════
+
+    # ── Introduction ─────────────────────────────────────────────────────────
+    intro_txt = ("Uploadez un fichier Excel ou CSV contenant les données de plusieurs patients. "
+                 "L'application les scorera automatiquement et vous pourrez télécharger les résultats."
+                 if L == "fr" else
+                 "Upload an Excel or CSV file with multiple patient records. "
+                 "The app will score them automatically and you can download the results.")
+    st.markdown(f"""
+    <div style="background:#fff;border-radius:14px;padding:16px 22px;
+         margin-bottom:16px;box-shadow:0 2px 10px rgba(0,0,0,0.06);border-top:4px solid #0d7a5c;">
+      <div style="font-size:1em;font-weight:700;color:#0b2d52;">
+          {"📂 Scoring par lot — Import de fichier" if L=="fr" else "📂 Batch Scoring — File Import"}
+      </div>
+      <div style="font-size:0.84em;color:#777;margin-top:4px;">{intro_txt}</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # ── Téléchargement du modèle ──────────────────────────────────────────────
+    st.markdown(
+        f'<div style="font-weight:600;color:#0b2d52;margin-bottom:6px;">'
+        f'{"📋 Étape 1 — Téléchargez le modèle Excel à remplir" if L=="fr" else "📋 Step 1 — Download the Excel template to fill in"}'
+        f'</div>', unsafe_allow_html=True)
+
+    try:
+        tpl_bytes = generate_template()
+        st.download_button(
+            label="⬇️ Télécharger le modèle Excel" if L == "fr" else "⬇️ Download Excel template",
+            data=tpl_bytes,
+            file_name="modele_TARV_Score.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            use_container_width=False,
+        )
+    except Exception as e:
+        st.error(f"Erreur génération modèle : {e}")
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # ── Upload du fichier ─────────────────────────────────────────────────────
+    st.markdown(
+        f'<div style="font-weight:600;color:#0b2d52;margin-bottom:6px;">'
+        f'{"📤 Étape 2 — Uploadez votre fichier rempli" if L=="fr" else "📤 Step 2 — Upload your filled file"}'
+        f'</div>', unsafe_allow_html=True)
+
+    upload_label = "Choisir un fichier Excel ou CSV" if L == "fr" else "Choose an Excel or CSV file"
+    uploaded = st.file_uploader(upload_label, type=["xlsx", "xls", "csv"], key="batch_upload")
+
+    if uploaded is not None:
+        # Lecture du fichier
+        try:
+            if uploaded.name.lower().endswith(".csv"):
+                df_up = pd.read_csv(uploaded, sep=None, engine="python")
+            else:
+                df_up = pd.read_excel(uploaded)
+        except Exception as e:
+            st.error(f"Impossible de lire le fichier : {e}")
+            df_up = None
+
+        if df_up is not None:
+            # Vérification des colonnes
+            missing = [c for c in COLS_REQUIS if c not in df_up.columns]
+            if missing:
+                st.error(
+                    ("❌ Colonnes manquantes dans le fichier : **" + "**, **".join(missing) + "**\n\n"
+                     "Utilisez le modèle Excel fourni à l'étape 1."
+                     if L == "fr" else
+                     "❌ Missing columns in file: **" + "**, **".join(missing) + "**\n\n"
+                     "Please use the Excel template from step 1.")
+                )
+            else:
+                st.success(f"✅ {'Fichier valide' if L=='fr' else 'Valid file'} — {len(df_up)} {'patients détectés' if L=='fr' else 'patients detected'}")
+
+                # Aperçu
+                with st.expander("👁️ Aperçu du fichier" if L == "fr" else "👁️ File preview"):
+                    st.dataframe(df_up.head(5), use_container_width=True)
+
+                # Bouton de scoring
+                btn_score = "🔍 Scorer tous les patients" if L == "fr" else "🔍 Score all patients"
+                if st.button(btn_score, type="primary", use_container_width=True, key="batch_score_btn"):
+                    with st.spinner("Calcul en cours…" if L == "fr" else "Computing…"):
+                        df_res = score_dataframe(df_up)
+
+                    # Résultats
+                    st.markdown("<br>", unsafe_allow_html=True)
+                    st.markdown(
+                        f'<div style="font-weight:700;font-size:1em;color:#0b2d52;margin-bottom:8px;">'
+                        f'{"📊 Résultats du scoring" if L=="fr" else "📊 Scoring Results"}'
+                        f'</div>', unsafe_allow_html=True)
+
+                    # Tableau coloré
+                    def color_row(row):
+                        niv = str(row.get("Niveau de risque", ""))
+                        if niv.startswith("El"):
+                            return ["background-color:#fdedec"] * len(row)
+                        elif niv.startswith("Mod"):
+                            return ["background-color:#fef9e7"] * len(row)
+                        else:
+                            return ["background-color:#eafaf1"] * len(row)
+
+                    st.dataframe(
+                        df_res.style.apply(color_row, axis=1),
+                        use_container_width=True,
+                        height=min(400, 40 + len(df_res) * 35),
+                    )
+
+                    # Statistiques rapides
+                    n_tot  = len(df_res)
+                    n_low  = (df_res["Niveau de risque"].str.startswith("Faible")).sum()
+                    n_mod  = (df_res["Niveau de risque"].str.startswith("Mod")).sum()
+                    n_high = (df_res["Niveau de risque"].str.startswith("El")).sum()
+                    c1, c2, c3, c4 = st.columns(4)
+                    c1.metric("Total", n_tot)
+                    c2.metric("🟢 Faible / Low",   n_low)
+                    c3.metric("🟠 Modéré / Mod",   n_mod)
+                    c4.metric("🔴 Élevé / High",   n_high)
+
+                    st.markdown("<br>", unsafe_allow_html=True)
+                    dl1, dl2 = st.columns(2)
+
+                    # Export Excel
+                    with dl1:
+                        import io as _io
+                        buf = _io.BytesIO()
+                        df_res.to_excel(buf, index=False, engine="openpyxl")
+                        buf.seek(0)
+                        st.download_button(
+                            label="⬇️ Télécharger Excel (avec scores)" if L == "fr" else "⬇️ Download Excel (with scores)",
+                            data=buf.read(),
+                            file_name=f"TARV_scores_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
+                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                            use_container_width=True,
+                        )
+
+                    # Export PDF récapitulatif
+                    with dl2:
+                        try:
+                            pdf_batch = generate_batch_pdf(
+                                df_res,
+                                cnls_path=ASSETS / "cnls_logo.png",
+                                issea_path=ASSETS / "issea_logo.png",
+                            )
+                            st.download_button(
+                                label="⬇️ Télécharger PDF récapitulatif" if L == "fr" else "⬇️ Download PDF summary",
+                                data=pdf_batch,
+                                file_name=f"TARV_rapport_lot_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf",
+                                mime="application/pdf",
+                                use_container_width=True,
+                            )
+                        except Exception as e:
+                            st.warning(f"PDF non disponible : {e}")
 
 # ─────────────────────────────────────────────────────────────────────────────
 # PIED DE PAGE
