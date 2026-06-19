@@ -1,4 +1,4 @@
-# =============================================================================
+﻿# =============================================================================
 # TARV-Score — Application de scoring clinique | Bilingual FR/EN
 # Mémoire ISE3 | ISSEA-CEMAC 2025-2026 | CNLS / GTC / Cameroun
 # Auteur : AZONFACK MYRIAM DOLVIANNE
@@ -988,195 +988,195 @@ with tab1:
 </div>
 """, unsafe_allow_html=True)
 
-with st.form("patient_form", clear_on_submit=False):
-    col1, col2, col3 = st.columns(3, gap="medium")
-
-    with col1:
+    with st.form("patient_form", clear_on_submit=False):
+        col1, col2, col3 = st.columns(3, gap="medium")
+    
+        with col1:
+            st.markdown(
+                f'<div style="font-size:0.82em;font-weight:700;color:#1a5e8a;'
+                f'text-transform:uppercase;letter-spacing:1px;padding:8px 0 6px 0;'
+                f'border-bottom:2px solid #d0e4f7;margin-bottom:12px;">'
+                f'{t("sec_loc")}</div>', unsafe_allow_html=True)
+            region    = st.selectbox(t("region"),    T["region_opts"][L],    key=f"{L}_region")
+            type_fosa = st.selectbox(t("type_fosa"), T["type_fosa_opts"][L], key=f"{L}_fosa")
+            pepfar    = st.radio(t("pepfar"),  [t("non"), t("oui")], horizontal=True, key=f"{L}_pepfar")
+            milieu    = st.radio(t("milieu"),  [t("urbain"), t("rural")], horizontal=True, key=f"{L}_milieu")
+    
+        with col2:
+            st.markdown(
+                f'<div style="font-size:0.82em;font-weight:700;color:#0d7a5c;'
+                f'text-transform:uppercase;letter-spacing:1px;padding:8px 0 6px 0;'
+                f'border-bottom:2px solid #c3e8da;margin-bottom:12px;">'
+                f'{t("sec_socio")}</div>', unsafe_allow_html=True)
+            sexe         = st.radio(t("sexe"),         [t("feminin"), t("masculin")], horizontal=True, key=f"{L}_sexe")
+            tranche_age  = st.selectbox(t("tranche_age"),  T["tranche_age_opts"][L],  key=f"{L}_age")
+            niveau_etude = st.selectbox(t("niveau_etude"), T["niveau_etude_opts"][L], key=f"{L}_etude")
+            statut_mat   = st.selectbox(t("statut_mat"),   T["statut_mat_opts"][L],   key=f"{L}_statut")
+    
+        with col3:
+            st.markdown(
+                f'<div style="font-size:0.82em;font-weight:700;color:#6c3483;'
+                f'text-transform:uppercase;letter-spacing:1px;padding:8px 0 6px 0;'
+                f'border-bottom:2px solid #e8d5f5;margin-bottom:12px;">'
+                f'{t("sec_thera")}</div>', unsafe_allow_html=True)
+            activite   = st.radio(t("activite"),   [t("non"), t("oui")], horizontal=True, key=f"{L}_activite")
+            observance = st.selectbox(t("observance"),  T["observance_opts"][L], key=f"{L}_observance")
+            dsd        = st.selectbox(t("dsd"),         T["dsd_opts"][L],        key=f"{L}_dsd")
+            protocole  = st.selectbox(t("protocole"),   T["protocole_opts"][L],  key=f"{L}_protocole")
+    
+        st.markdown("<br>", unsafe_allow_html=True)
+        submitted = st.form_submit_button(t("btn_calc"), use_container_width=True, type="primary")
+    
+    # ─────────────────────────────────────────────────────────────────────────────
+    # RÉSULTATS
+    # ─────────────────────────────────────────────────────────────────────────────
+    if submitted:
+        # Convertir en valeurs internes (FR identiques à l'entraînement)
+        region_fr    = REGION_EN2FR.get(region, region)              if L == "en" else region
+        type_fosa_fr = FOSA_INTERNAL[type_fosa]
+        pepfar_fr    = "Oui" if pepfar == t("oui") else "Non"
+        milieu_fr    = "Urbain" if milieu == t("urbain") else "Rural"
+        sexe_fr      = "Masculin" if sexe == t("masculin") else "Féminin"
+        tranche_fr   = AGE_EN2FR.get(tranche_age, tranche_age)       if L == "en" else tranche_age
+        etude_fr     = ETUDE_EN2FR.get(niveau_etude, niveau_etude)   if L == "en" else niveau_etude
+        statut_fr    = STATUT_EN2FR.get(statut_mat, statut_mat)      if L == "en" else statut_mat
+        activite_fr  = "Oui" if activite == t("oui") else "Non"
+        observ_fr    = OBSERVANCE_INTERNAL[observance]
+        dsd_fr       = DSD_EN2FR.get(dsd, dsd)                       if L == "en" else dsd
+        proto_fr     = PROTO_EN2FR.get(protocole, protocole)         if L == "en" else protocole
+    
+        raw_fr = {
+            "Tranche_Age":        tranche_fr,
+            "Sexe":               sexe_fr,
+            "Niveau_Etude":       etude_fr,
+            "Statut_Matrimonial": statut_fr,
+            "Region":             region_fr,
+            "Type_FOSA":          type_fosa_fr,
+            "Soutien_PEPFAR":     pepfar_fr,
+            "Milieu_Residence":   milieu_fr,
+            "Observance_4j":      observ_fr,
+            "Activite_Remuneree": activite_fr,
+            "DSD_Recode":         dsd_fr,
+            "Protocole_Recode":   proto_fr,
+        }
+    
+        with st.spinner(t("spinner")):
+            prob = predict(raw_fr)
+    
+        if prob < 0.30:
+            niveau, color        = t("risk_low_lbl"),  "#27ae60"
+            emoji_r              = "🟢"
+            bg_card, bd_card     = "#eafaf1", "#27ae60"
+            bg_reco, bd_reco, tc = "#eafaf1", "#27ae60", "#1e5f3a"
+            reco = t("reco_low")
+        elif prob < SEUIL:
+            niveau, color        = t("risk_mod_lbl"),  "#e67e22"
+            emoji_r              = "🟠"
+            bg_card, bd_card     = "#fef5e7", "#f39c12"
+            bg_reco, bd_reco, tc = "#fef9e7", "#f39c12", "#784212"
+            reco = t("reco_mod")
+        else:
+            niveau, color        = t("risk_high_lbl"), "#e74c3c"
+            emoji_r              = "🔴"
+            bg_card, bd_card     = "#fdedec", "#e74c3c"
+            bg_reco, bd_reco, tc = "#fdedec", "#e74c3c", "#7b241c"
+            reco = t("reco_high")
+    
+        risk_word = "RISQUE" if L == "fr" else "RISK"
+    
         st.markdown(
-            f'<div style="font-size:0.82em;font-weight:700;color:#1a5e8a;'
-            f'text-transform:uppercase;letter-spacing:1px;padding:8px 0 6px 0;'
-            f'border-bottom:2px solid #d0e4f7;margin-bottom:12px;">'
-            f'{t("sec_loc")}</div>', unsafe_allow_html=True)
-        region    = st.selectbox(t("region"),    T["region_opts"][L],    key=f"{L}_region")
-        type_fosa = st.selectbox(t("type_fosa"), T["type_fosa_opts"][L], key=f"{L}_fosa")
-        pepfar    = st.radio(t("pepfar"),  [t("non"), t("oui")], horizontal=True, key=f"{L}_pepfar")
-        milieu    = st.radio(t("milieu"),  [t("urbain"), t("rural")], horizontal=True, key=f"{L}_milieu")
-
-    with col2:
-        st.markdown(
-            f'<div style="font-size:0.82em;font-weight:700;color:#0d7a5c;'
-            f'text-transform:uppercase;letter-spacing:1px;padding:8px 0 6px 0;'
-            f'border-bottom:2px solid #c3e8da;margin-bottom:12px;">'
-            f'{t("sec_socio")}</div>', unsafe_allow_html=True)
-        sexe         = st.radio(t("sexe"),         [t("feminin"), t("masculin")], horizontal=True, key=f"{L}_sexe")
-        tranche_age  = st.selectbox(t("tranche_age"),  T["tranche_age_opts"][L],  key=f"{L}_age")
-        niveau_etude = st.selectbox(t("niveau_etude"), T["niveau_etude_opts"][L], key=f"{L}_etude")
-        statut_mat   = st.selectbox(t("statut_mat"),   T["statut_mat_opts"][L],   key=f"{L}_statut")
-
-    with col3:
-        st.markdown(
-            f'<div style="font-size:0.82em;font-weight:700;color:#6c3483;'
-            f'text-transform:uppercase;letter-spacing:1px;padding:8px 0 6px 0;'
-            f'border-bottom:2px solid #e8d5f5;margin-bottom:12px;">'
-            f'{t("sec_thera")}</div>', unsafe_allow_html=True)
-        activite   = st.radio(t("activite"),   [t("non"), t("oui")], horizontal=True, key=f"{L}_activite")
-        observance = st.selectbox(t("observance"),  T["observance_opts"][L], key=f"{L}_observance")
-        dsd        = st.selectbox(t("dsd"),         T["dsd_opts"][L],        key=f"{L}_dsd")
-        protocole  = st.selectbox(t("protocole"),   T["protocole_opts"][L],  key=f"{L}_protocole")
-
-    st.markdown("<br>", unsafe_allow_html=True)
-    submitted = st.form_submit_button(t("btn_calc"), use_container_width=True, type="primary")
-
-# ─────────────────────────────────────────────────────────────────────────────
-# RÉSULTATS
-# ─────────────────────────────────────────────────────────────────────────────
-if submitted:
-    # Convertir en valeurs internes (FR identiques à l'entraînement)
-    region_fr    = REGION_EN2FR.get(region, region)              if L == "en" else region
-    type_fosa_fr = FOSA_INTERNAL[type_fosa]
-    pepfar_fr    = "Oui" if pepfar == t("oui") else "Non"
-    milieu_fr    = "Urbain" if milieu == t("urbain") else "Rural"
-    sexe_fr      = "Masculin" if sexe == t("masculin") else "Féminin"
-    tranche_fr   = AGE_EN2FR.get(tranche_age, tranche_age)       if L == "en" else tranche_age
-    etude_fr     = ETUDE_EN2FR.get(niveau_etude, niveau_etude)   if L == "en" else niveau_etude
-    statut_fr    = STATUT_EN2FR.get(statut_mat, statut_mat)      if L == "en" else statut_mat
-    activite_fr  = "Oui" if activite == t("oui") else "Non"
-    observ_fr    = OBSERVANCE_INTERNAL[observance]
-    dsd_fr       = DSD_EN2FR.get(dsd, dsd)                       if L == "en" else dsd
-    proto_fr     = PROTO_EN2FR.get(protocole, protocole)         if L == "en" else protocole
-
-    raw_fr = {
-        "Tranche_Age":        tranche_fr,
-        "Sexe":               sexe_fr,
-        "Niveau_Etude":       etude_fr,
-        "Statut_Matrimonial": statut_fr,
-        "Region":             region_fr,
-        "Type_FOSA":          type_fosa_fr,
-        "Soutien_PEPFAR":     pepfar_fr,
-        "Milieu_Residence":   milieu_fr,
-        "Observance_4j":      observ_fr,
-        "Activite_Remuneree": activite_fr,
-        "DSD_Recode":         dsd_fr,
-        "Protocole_Recode":   proto_fr,
-    }
-
-    with st.spinner(t("spinner")):
-        prob = predict(raw_fr)
-
-    if prob < 0.30:
-        niveau, color        = t("risk_low_lbl"),  "#27ae60"
-        emoji_r              = "🟢"
-        bg_card, bd_card     = "#eafaf1", "#27ae60"
-        bg_reco, bd_reco, tc = "#eafaf1", "#27ae60", "#1e5f3a"
-        reco = t("reco_low")
-    elif prob < SEUIL:
-        niveau, color        = t("risk_mod_lbl"),  "#e67e22"
-        emoji_r              = "🟠"
-        bg_card, bd_card     = "#fef5e7", "#f39c12"
-        bg_reco, bd_reco, tc = "#fef9e7", "#f39c12", "#784212"
-        reco = t("reco_mod")
-    else:
-        niveau, color        = t("risk_high_lbl"), "#e74c3c"
-        emoji_r              = "🔴"
-        bg_card, bd_card     = "#fdedec", "#e74c3c"
-        bg_reco, bd_reco, tc = "#fdedec", "#e74c3c", "#7b241c"
-        reco = t("reco_high")
-
-    risk_word = "RISQUE" if L == "fr" else "RISK"
-
-    st.markdown(
-        f'<div class="res-divider"><hr><span>{t("res_divider")}</span><hr></div>',
-        unsafe_allow_html=True,
-    )
-
-    col_g, col_r = st.columns([1, 1.45], gap="large")
-
-    with col_g:
-        st.markdown(svg_gauge(prob, color), unsafe_allow_html=True)
-        st.markdown(f"""
-        <div style="background:{bg_card};border-radius:14px;border:2px solid {bd_card};
-             padding:18px 20px;text-align:center;margin-top:12px;
-             box-shadow:0 4px 16px {bd_card}33;">
-            <div style="font-size:0.78em;font-weight:800;letter-spacing:2.5px;
-                 text-transform:uppercase;color:{color};margin-bottom:4px;">
-                {emoji_r} &nbsp; {risk_word} {niveau}
-            </div>
-            <div style="font-size:3em;font-weight:900;color:{color};line-height:1.1;">
-                {prob:.1%}
-            </div>
-            <div style="font-size:0.8em;color:#777;margin-top:4px;">
-                {t("seuil_txt")} : {SEUIL:.0%} — XGBoost
-            </div>
-        </div>
-        <div style="background:{bg_reco};border-left:5px solid {bd_reco};
-             border-radius:0 10px 10px 0;padding:14px 16px;
-             margin-top:10px;font-size:0.88em;line-height:1.6;color:{tc};">
-            <strong>{t("reco_lbl")}</strong><br>{reco}
-        </div>
-        """, unsafe_allow_html=True)
-
-    with col_r:
-        st.markdown(
-            f'<div style="font-size:0.83em;color:#777;margin-bottom:6px;">{t("imp_sub")}</div>',
+            f'<div class="res-divider"><hr><span>{t("res_divider")}</span><hr></div>',
             unsafe_allow_html=True,
         )
-        st.pyplot(draw_importance(10), use_container_width=True)
+    
+        col_g, col_r = st.columns([1, 1.45], gap="large")
+    
+        with col_g:
+            st.markdown(svg_gauge(prob, color), unsafe_allow_html=True)
+            st.markdown(f"""
+            <div style="background:{bg_card};border-radius:14px;border:2px solid {bd_card};
+                 padding:18px 20px;text-align:center;margin-top:12px;
+                 box-shadow:0 4px 16px {bd_card}33;">
+                <div style="font-size:0.78em;font-weight:800;letter-spacing:2.5px;
+                     text-transform:uppercase;color:{color};margin-bottom:4px;">
+                    {emoji_r} &nbsp; {risk_word} {niveau}
+                </div>
+                <div style="font-size:3em;font-weight:900;color:{color};line-height:1.1;">
+                    {prob:.1%}
+                </div>
+                <div style="font-size:0.8em;color:#777;margin-top:4px;">
+                    {t("seuil_txt")} : {SEUIL:.0%} — XGBoost
+                </div>
+            </div>
+            <div style="background:{bg_reco};border-left:5px solid {bd_reco};
+                 border-radius:0 10px 10px 0;padding:14px 16px;
+                 margin-top:10px;font-size:0.88em;line-height:1.6;color:{tc};">
+                <strong>{t("reco_lbl")}</strong><br>{reco}
+            </div>
+            """, unsafe_allow_html=True)
+    
+        with col_r:
+            st.markdown(
+                f'<div style="font-size:0.83em;color:#777;margin-bottom:6px;">{t("imp_sub")}</div>',
+                unsafe_allow_html=True,
+            )
+            st.pyplot(draw_importance(10), use_container_width=True)
+            st.markdown(
+                f'<div style="font-size:0.78em;color:#888;margin-top:2px;text-align:center;">'
+                f'{t("imp_legend")}</div>',
+                unsafe_allow_html=True,
+            )
+    
+            with st.expander(t("recap_title")):
+                var_labels = {
+                    "fr": ["Région","Type de FOSA","Soutien PEPFAR","Milieu de résidence",
+                           "Sexe","Tranche d'âge","Niveau d'étude","Statut matrimonial",
+                           "Activité rémunérée","Observance (4j)","Mode DSD","Protocole ARV"],
+                    "en": ["Region","Health Facility Type","PEPFAR Support","Residence Setting",
+                           "Sex","Age Group","Education Level","Marital Status",
+                           "Paid Activity","Adherence (4 days)","DSD Mode","ART Protocol"],
+                }
+                recap = pd.DataFrame({
+                    t("recap_var"): var_labels[L],
+                    t("recap_val"): [region, type_fosa, pepfar, milieu,
+                                     sexe, tranche_age, niveau_etude, statut_mat,
+                                     activite, observance, dsd, protocole],
+                })
+                st.dataframe(recap, use_container_width=True, hide_index=True)
+    
+        # ── Bouton export PDF ─────────────────────────────────────────────────────
+        st.markdown("<br>", unsafe_allow_html=True)
         st.markdown(
-            f'<div style="font-size:0.78em;color:#888;margin-top:2px;text-align:center;">'
-            f'{t("imp_legend")}</div>',
+            f'<div style="background:#fff;border-radius:12px;padding:16px 20px;'
+            f'border:2px dashed #1a5e8a;text-align:center;margin-top:8px;">'
+            f'<div style="font-size:0.9em;font-weight:600;color:#0b2d52;margin-bottom:10px;">'
+            f'{"📄 Télécharger la fiche patient (PDF imprimable)" if L=="fr" else "📄 Download patient report (printable PDF)"}'
+            f'</div></div>',
             unsafe_allow_html=True,
         )
-
-        with st.expander(t("recap_title")):
-            var_labels = {
-                "fr": ["Région","Type de FOSA","Soutien PEPFAR","Milieu de résidence",
-                       "Sexe","Tranche d'âge","Niveau d'étude","Statut matrimonial",
-                       "Activité rémunérée","Observance (4j)","Mode DSD","Protocole ARV"],
-                "en": ["Region","Health Facility Type","PEPFAR Support","Residence Setting",
-                       "Sex","Age Group","Education Level","Marital Status",
-                       "Paid Activity","Adherence (4 days)","DSD Mode","ART Protocol"],
-            }
-            recap = pd.DataFrame({
-                t("recap_var"): var_labels[L],
-                t("recap_val"): [region, type_fosa, pepfar, milieu,
-                                 sexe, tranche_age, niveau_etude, statut_mat,
-                                 activite, observance, dsd, protocole],
-            })
-            st.dataframe(recap, use_container_width=True, hide_index=True)
-
-    # ── Bouton export PDF ─────────────────────────────────────────────────────
-    st.markdown("<br>", unsafe_allow_html=True)
-    st.markdown(
-        f'<div style="background:#fff;border-radius:12px;padding:16px 20px;'
-        f'border:2px dashed #1a5e8a;text-align:center;margin-top:8px;">'
-        f'<div style="font-size:0.9em;font-weight:600;color:#0b2d52;margin-bottom:10px;">'
-        f'{"📄 Télécharger la fiche patient (PDF imprimable)" if L=="fr" else "📄 Download patient report (printable PDF)"}'
-        f'</div></div>',
-        unsafe_allow_html=True,
-    )
-    patient_vals = [region, type_fosa, pepfar, milieu, sexe, tranche_age,
-                    niveau_etude, statut_mat, activite, observance, dsd, protocole]
-    try:
-        pdf_bytes = generate_pdf(
-            patient_vals=patient_vals,
-            prob=prob,
-            niveau=niveau,
-            reco=reco,
-            lang=L,
-            cnls_path=ASSETS / "cnls_logo.png",
-            issea_path=ASSETS / "issea_logo.png",
-        )
-        btn_lbl = "⬇️ Télécharger le PDF" if L == "fr" else "⬇️ Download PDF"
-        st.download_button(
-            label=btn_lbl,
-            data=pdf_bytes,
-            file_name=f"fiche_TARV_Score_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf",
-            mime="application/pdf",
-            use_container_width=True,
-        )
-    except Exception as e:
-        st.warning(f"PDF non disponible : {e}")
-
+        patient_vals = [region, type_fosa, pepfar, milieu, sexe, tranche_age,
+                        niveau_etude, statut_mat, activite, observance, dsd, protocole]
+        try:
+            pdf_bytes = generate_pdf(
+                patient_vals=patient_vals,
+                prob=prob,
+                niveau=niveau,
+                reco=reco,
+                lang=L,
+                cnls_path=ASSETS / "cnls_logo.png",
+                issea_path=ASSETS / "issea_logo.png",
+            )
+            btn_lbl = "⬇️ Télécharger le PDF" if L == "fr" else "⬇️ Download PDF"
+            st.download_button(
+                label=btn_lbl,
+                data=pdf_bytes,
+                file_name=f"fiche_TARV_Score_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf",
+                mime="application/pdf",
+                use_container_width=True,
+            )
+        except Exception as e:
+            st.warning(f"PDF non disponible : {e}")
+    
 # ══════════════════════════════════════════════════════════════════════════════
 with tab2:
 # ══════════════════════════════════════════════════════════════════════════════
