@@ -976,9 +976,7 @@ tab_lbl1 = "📝 Saisie individuelle" if L == "fr" else "📝 Individual entry"
 tab_lbl2 = "📂 Import fichier (Excel / CSV)" if L == "fr" else "📂 File import (Excel / CSV)"
 tab1, tab2 = st.tabs([tab_lbl1, tab_lbl2])
 
-# ══════════════════════════════════════════════════════════════════════════════
 with tab1:
-# ══════════════════════════════════════════════════════════════════════════════
 
     st.markdown(f"""
 <div style="background:#fff;border-radius:14px;padding:18px 22px 6px 22px;
@@ -1177,9 +1175,7 @@ with tab1:
         except Exception as e:
             st.warning(f"PDF non disponible : {e}")
     
-# ══════════════════════════════════════════════════════════════════════════════
 with tab2:
-# ══════════════════════════════════════════════════════════════════════════════
 
     # ── Introduction ─────────────────────────────────────────────────────────
     intro_txt = ("Uploadez un fichier Excel ou CSV contenant les données de plusieurs patients. "
