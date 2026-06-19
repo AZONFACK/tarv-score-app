@@ -1,4 +1,4 @@
-﻿# =============================================================================
+# =============================================================================
 # TARV-Score — Application de scoring clinique | Bilingual FR/EN
 # Mémoire ISE3 | ISSEA-CEMAC 2025-2026 | CNLS / GTC / Cameroun
 # Auteur : AZONFACK MYRIAM DOLVIANNE
