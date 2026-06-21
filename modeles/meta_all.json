@@ -1,0 +1,41 @@
+{
+  "XGBoost": {
+    "fichier": "XGBoost_v1.pkl",
+    "seuil_defaut": 0.50,
+    "rappel": 0.838,
+    "precision": 0.344,
+    "f1_score": 0.488,
+    "auc_roc": 0.704,
+    "smote": true,
+    "description_fr": "Champion — Rappel maximal (83,8 %). Idéal pour ne rater aucun patient à risque. Accepte plus de faux positifs.",
+    "description_en": "Champion — Maximum recall (83.8%). Ideal to miss no at-risk patient. Accepts more false positives.",
+    "usage_fr": "Prioriser la détection (ne pas manquer un cas)",
+    "usage_en": "Prioritize detection (miss no case)"
+  },
+  "Logistique": {
+    "fichier": "Logit_v1.pkl",
+    "seuil_defaut": 0.50,
+    "rappel": 0.628,
+    "precision": 0.435,
+    "f1_score": 0.514,
+    "auc_roc": 0.724,
+    "smote": true,
+    "description_fr": "Meilleur AUC (0,724). Meilleur équilibre Rappel/Précision. Résultats plus conservateurs et interprétables.",
+    "description_en": "Best AUC (0.724). Best Recall/Precision balance. More conservative and interpretable results.",
+    "usage_fr": "Équilibre détection / précision (recommandé)",
+    "usage_en": "Balance detection / precision (recommended)"
+  },
+  "SVM": {
+    "fichier": "SVM_v1.pkl",
+    "seuil_defaut": 0.50,
+    "rappel": 0.561,
+    "precision": 0.439,
+    "f1_score": 0.493,
+    "auc_roc": 0.697,
+    "smote": true,
+    "description_fr": "Meilleure précision (43,9 %). Moins de faux positifs. Utile quand les ressources de suivi sont limitées.",
+    "description_en": "Best precision (43.9%). Fewer false positives. Useful when follow-up resources are limited.",
+    "usage_fr": "Prioriser la précision (ressources limitées)",
+    "usage_en": "Prioritize precision (limited resources)"
+  }
+}

@@ -79,8 +79,8 @@ T = {
     },
     "badge_cnls":    {"fr": "CNLS Cameroun",         "en": "NACC Cameroon"},
     "badge_xgb":     {"fr": "XGBoost Champion",      "en": "XGBoost Champion"},
-    "badge_recall":  {"fr": "Rappel : 83,8 %",       "en": "Recall: 83.8%"},
-    "badge_auc":     {"fr": "AUC-ROC : 0,704",       "en": "AUC-ROC: 0.704"},
+    "badge_recall":  {"fr": "Rappel",                 "en": "Recall"},
+    "badge_auc":     {"fr": "AUC-ROC",               "en": "AUC-ROC"},
 
     # ── Formulaire ───────────────────────────────────────────────────────────
     "form_intro":    {
@@ -303,13 +303,17 @@ MODELES = BASE / "modeles"
 
 
 @st.cache_resource
-def load_resources():
-    model    = joblib.load(MODELES / "XGBoost_v1.pkl")
+def load_base_resources():
     scaler   = joblib.load(MODELES / "scaler_prepro.pkl")
     colonnes = joblib.load(MODELES / "colonnes_train.pkl")
-    with open(MODELES / "meta.json", encoding="utf-8") as f:
-        meta = json.load(f)
-    return model, scaler, colonnes, meta
+    with open(MODELES / "meta_all.json", encoding="utf-8") as f:
+        meta_all = json.load(f)
+    return scaler, colonnes, meta_all
+
+
+@st.cache_resource
+def load_model(nom: str, fichier: str):
+    return joblib.load(MODELES / fichier)
 
 
 def img_b64(path: Path) -> str:
@@ -339,15 +343,81 @@ def t(key: str) -> str:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# CHARGEMENT MODÈLE
+# CHARGEMENT RESSOURCES DE BASE
 # ─────────────────────────────────────────────────────────────────────────────
 try:
-    model, scaler, colonnes_train, meta = load_resources()
+    scaler, colonnes_train, meta_all = load_base_resources()
 except Exception as exc:
     st.error(f"❌ {'Impossible de charger les ressources' if L=='fr' else 'Cannot load resources'}: {exc}")
     st.stop()
 
-SEUIL = meta.get("seuil", 0.50)
+# ─────────────────────────────────────────────────────────────────────────────
+# SÉLECTEUR DE MODÈLE (sidebar)
+# ─────────────────────────────────────────────────────────────────────────────
+MODEL_NAMES = {
+    "fr": {
+        "XGBoost":    "🏆 XGBoost (Rappel max)",
+        "Logistique": "⚖️ Régression Logistique (Équilibré)",
+        "SVM":        "🎯 SVM (Précision max)",
+    },
+    "en": {
+        "XGBoost":    "🏆 XGBoost (Max Recall)",
+        "Logistique": "⚖️ Logistic Regression (Balanced)",
+        "SVM":        "🎯 SVM (Max Precision)",
+    },
+}
+
+with st.sidebar:
+    st.divider()
+    mod_title = "🤖 Choix du modèle de scoring" if L == "fr" else "🤖 Scoring Model Selection"
+    st.markdown(f"### {mod_title}")
+
+    model_key = st.radio(
+        label="",
+        options=list(MODEL_NAMES["fr"].keys()),
+        format_func=lambda k: MODEL_NAMES[L][k],
+        key="model_choice",
+        label_visibility="collapsed",
+    )
+    meta_m = meta_all[model_key]
+
+    # Affichage métriques du modèle sélectionné
+    desc_key = "description_fr" if L == "fr" else "description_en"
+    usage_key = "usage_fr" if L == "fr" else "usage_en"
+    st.markdown(
+        f'<div style="background:rgba(255,255,255,0.10);border-radius:8px;padding:8px 12px;'
+        f'margin-top:6px;font-size:0.8em;color:#ddeeff;line-height:1.5;">'
+        f'<em>{meta_m[desc_key]}</em><br>'
+        f'<strong style="color:#a8e6cf;">→ {meta_m[usage_key]}</strong>'
+        f'</div>',
+        unsafe_allow_html=True,
+    )
+
+    st.markdown("<br>", unsafe_allow_html=True)
+    seuil_title = "🎚️ Seuil de décision" if L == "fr" else "🎚️ Decision Threshold"
+    st.markdown(f"**{seuil_title}**")
+    SEUIL = st.slider(
+        label="",
+        min_value=0.30,
+        max_value=0.75,
+        value=float(meta_m["seuil_defaut"]),
+        step=0.05,
+        format="%.2f",
+        key="seuil_slider",
+        label_visibility="collapsed",
+    )
+    seuil_info = (f"Rappel ≈ {meta_m['rappel']:.0%} | Précision ≈ {meta_m['precision']:.0%}"
+                  if L == "fr" else
+                  f"Recall ≈ {meta_m['rappel']:.0%} | Precision ≈ {meta_m['precision']:.0%}")
+    st.caption(f"Métriques à seuil 0,50 : {seuil_info}" if L == "fr" else
+               f"Metrics at threshold 0.50: {seuil_info}")
+
+# Chargement du modèle sélectionné
+try:
+    model = load_model(model_key, meta_m["fichier"])
+except Exception as exc:
+    st.error(f"❌ Modèle {model_key} non disponible : {exc}")
+    st.stop()
 
 # ─────────────────────────────────────────────────────────────────────────────
 # RESTE DE LA SIDEBAR
@@ -357,13 +427,17 @@ with st.sidebar:
     st.caption(t("sidebar_sub"))
     st.divider()
 
-    st.markdown(f"### {t('perf_title')}")
+    st.markdown(f"### {t('perf_title')} — {model_key}")
     c1, c2 = st.columns(2)
-    c1.metric(t("recall_lbl"),  "83,8 %" if L == "fr" else "83.8%")
-    c2.metric("AUC-ROC",        "0,704"  if L == "fr" else "0.704")
-    c1.metric(t("train_lbl"),   "3 172")
-    c2.metric(t("test_lbl"),    "544")
-    st.caption(f"{t('algo_lbl')} : XGBoost  |  {t('seuil_lbl')} : {SEUIL:.0%}  |  {t('smote_lbl')}")
+    rappel_fmt    = f"{meta_m['rappel']:.1%}".replace(".", ",") if L == "fr" else f"{meta_m['rappel']:.1%}"
+    precision_fmt = f"{meta_m['precision']:.1%}".replace(".", ",") if L == "fr" else f"{meta_m['precision']:.1%}"
+    auc_fmt       = f"{meta_m['auc_roc']:.3f}".replace(".", ",") if L == "fr" else f"{meta_m['auc_roc']:.3f}"
+    c1.metric(t("recall_lbl"), rappel_fmt)
+    c2.metric("AUC-ROC",       auc_fmt)
+    c1.metric(t("train_lbl"),  "3 172")
+    c2.metric(t("test_lbl"),   "544")
+    prec_lbl = "Précision" if L == "fr" else "Precision"
+    st.caption(f"{t('algo_lbl')} : {model_key}  |  {t('seuil_lbl')} : {SEUIL:.0%}  |  {prec_lbl} : {precision_fmt}  |  {t('smote_lbl')}")
 
     st.divider()
     st.markdown(f"### {t('grid_title')}")
@@ -419,8 +493,9 @@ st.markdown(f"""
         <div style="display:flex; gap:8px; justify-content:center; flex-wrap:wrap; margin-top:13px;">
             <span style="background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);border-radius:20px;padding:3px 14px;font-size:0.78em;font-weight:600;">{t("badge_cnls")}</span>
             <span style="background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);border-radius:20px;padding:3px 14px;font-size:0.78em;font-weight:600;">{t("badge_xgb")}</span>
-            <span style="background:rgba(39,174,96,0.35);border:1px solid rgba(39,174,96,0.6);border-radius:20px;padding:3px 14px;font-size:0.78em;font-weight:600;">{t("badge_recall")}</span>
-            <span style="background:rgba(52,152,219,0.35);border:1px solid rgba(52,152,219,0.6);border-radius:20px;padding:3px 14px;font-size:0.78em;font-weight:600;">{t("badge_auc")}</span>
+            <span style="background:rgba(39,174,96,0.35);border:1px solid rgba(39,174,96,0.6);border-radius:20px;padding:3px 14px;font-size:0.78em;font-weight:600;">{t("badge_recall")} : {rappel_fmt}</span>
+            <span style="background:rgba(52,152,219,0.35);border:1px solid rgba(52,152,219,0.6);border-radius:20px;padding:3px 14px;font-size:0.78em;font-weight:600;">{t("badge_auc")} : {auc_fmt}</span>
+            <span style="background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);border-radius:20px;padding:3px 14px;font-size:0.78em;font-weight:600;">⚙️ {model_key}</span>
         </div>
     </div>
     <img src="data:image/png;base64,{issea_b64}" height="130"
@@ -467,11 +542,15 @@ def get_dummies_fixed(df: pd.DataFrame) -> pd.DataFrame:
     return df_dum.drop(columns=[c for c in refs if c in df_dum.columns])
 
 
-def predict(raw_fr: dict) -> float:
+def predict_with(m, raw_fr: dict) -> float:
     df     = pd.DataFrame([raw_fr])
     dum    = get_dummies_fixed(df).reindex(columns=colonnes_train, fill_value=0)
     scaled = pd.DataFrame(scaler.transform(dum), columns=colonnes_train)
-    return float(model.predict_proba(scaled)[0][1])
+    return float(m.predict_proba(scaled)[0][1])
+
+
+def predict(raw_fr: dict) -> float:
+    return predict_with(model, raw_fr)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -974,7 +1053,8 @@ def generate_batch_pdf(df_res: pd.DataFrame, cnls_path: Path, issea_path: Path) 
 # ─────────────────────────────────────────────────────────────────────────────
 tab_lbl1 = "📝 Saisie individuelle" if L == "fr" else "📝 Individual entry"
 tab_lbl2 = "📂 Import fichier (Excel / CSV)" if L == "fr" else "📂 File import (Excel / CSV)"
-tab1, tab2 = st.tabs([tab_lbl1, tab_lbl2])
+tab_lbl3 = "🔬 Diagnostic & Vérification" if L == "fr" else "🔬 Diagnostic & Verification"
+tab1, tab2, tab3 = st.tabs([tab_lbl1, tab_lbl2, tab_lbl3])
 
 with tab1:
 
@@ -1325,6 +1405,217 @@ with tab2:
                             )
                         except Exception as e:
                             st.warning(f"PDF non disponible : {e}")
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ONGLET 3 : DIAGNOSTIC & VÉRIFICATION
+# ─────────────────────────────────────────────────────────────────────────────
+with tab3:
+    diag_title = "🔬 Vérification du pipeline de scoring" if L == "fr" else "🔬 Scoring pipeline verification"
+    diag_sub = (
+        "Cet onglet permet de vérifier que le modèle score correctement en testant des profils de référence connus. "
+        "Les probabilités affichées reflètent ce que le modèle a appris des données d'entraînement."
+        if L == "fr" else
+        "This tab verifies that the model scores correctly by testing known reference profiles. "
+        "Displayed probabilities reflect what the model learned from training data."
+    )
+    st.markdown(f"""
+    <div style="background:#fff;border-radius:14px;padding:18px 22px;
+         margin-bottom:16px;box-shadow:0 2px 10px rgba(0,0,0,0.06);border-top:4px solid #6c3483;">
+      <div style="font-size:1em;font-weight:700;color:#0b2d52;">{diag_title}</div>
+      <div style="font-size:0.84em;color:#777;margin-top:4px;">{diag_sub}</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Note explicative sur les métriques
+    note_titre = "ℹ️ Comprendre les résultats du modèle" if L == "fr" else "ℹ️ Understanding model results"
+    note_corps = {
+        "fr": f"""
+**Pourquoi certains profils "faibles risque" ont-ils une probabilité élevée ?**
+
+Le modèle {model_key} a été entraîné avec SMOTE (ré-échantillonnage) pour équilibrer les classes. Il est optimisé pour :
+- **Rappel = {meta_m['rappel']:.0%}** → détecter un maximum d'interrupteurs réels
+- **Précision = {meta_m['precision']:.0%}** → sur 3 patients classés "à risque", seulement {meta_m['precision']:.0%} interrompront réellement
+
+**Les catégories de référence** (femme, 25-49 ans, FOSA publique, TLD, Centre...) sont les profils les plus **communs dans les données**. Le modèle a appris que ce profil type est associé à un risque plus élevé que prévu — non pas parce que ces caractéristiques sont dangereuses, mais parce qu'elles représentent la majorité des patients et capturent toute leur hétérogénéité.
+
+> **Conseil clinique** : Utilisez le score comme **signal de risque relatif** (comparer des patients entre eux) plutôt qu'en valeur absolue. Un patient à 90% représente un risque **plus élevé** qu'un patient à 40%.
+        """,
+        "en": f"""
+**Why do some "low risk" profiles get high probabilities?**
+
+The {model_key} model was trained with SMOTE (resampling) to balance classes. It is optimized for:
+- **Recall = {meta_m['rappel']:.0%}** → detect as many true interruptors as possible
+- **Precision = {meta_m['precision']:.0%}** → out of 3 patients classified "at risk", only {meta_m['precision']:.0%} will actually interrupt
+
+**Reference categories** (female, 25-49 yrs, public facility, TLD, Centre...) are the **most common profiles in the data**. The model learned that this typical profile is associated with higher risk than expected — not because these characteristics are dangerous, but because they represent the majority of patients and capture all their heterogeneity.
+
+> **Clinical advice**: Use the score as a **relative risk signal** (compare patients to each other) rather than in absolute value. A patient at 90% represents **higher risk** than a patient at 40%.
+        """
+    }
+    with st.expander(note_titre, expanded=True):
+        st.markdown(note_corps[L])
+
+    st.divider()
+
+    # Profils de test de référence
+    test_titre = "🧪 Profils de test de référence" if L == "fr" else "🧪 Reference test profiles"
+    st.markdown(f"#### {test_titre}")
+    test_sub = (
+        "Appuyez sur le bouton pour scorer les 5 profils de référence et vérifier le comportement du modèle sélectionné."
+        if L == "fr" else
+        "Click the button to score 5 reference profiles and verify the selected model's behavior."
+    )
+    st.markdown(f'<div style="font-size:0.85em;color:#666;margin-bottom:12px;">{test_sub}</div>',
+                unsafe_allow_html=True)
+
+    PROFILS_TEST = [
+        {
+            "nom_fr": "Profil 1 — Toutes catégories de référence",
+            "nom_en": "Profile 1 — All reference categories",
+            "risque_attendu_fr": "Risque de référence (baseline du modèle)",
+            "risque_attendu_en": "Reference risk (model baseline)",
+            "raw": {
+                "Tranche_Age": "25 à 49 Ans", "Sexe": "Féminin", "Niveau_Etude": "Primaire",
+                "Statut_Matrimonial": "Marié(e) en monogamie", "Region": "Centre",
+                "Type_FOSA": "Public", "Soutien_PEPFAR": "Non", "Milieu_Residence": "Urbain",
+                "Observance_4j": "Bonne", "Activite_Remuneree": "Non",
+                "DSD_Recode": "Standard (Suivi classique)", "Protocole_Recode": "TDF+3TC+DTG (TLD)"
+            }
+        },
+        {
+            "nom_fr": "Profil 2 — Observance médiocre, rural, jeune",
+            "nom_en": "Profile 2 — Poor adherence, rural, young",
+            "risque_attendu_fr": "Risque élevé attendu",
+            "risque_attendu_en": "Expected high risk",
+            "raw": {
+                "Tranche_Age": "18 à 20 Ans", "Sexe": "Masculin", "Niveau_Etude": "Jamais fréquenté",
+                "Statut_Matrimonial": "Célibataire", "Region": "Extrême-Nord",
+                "Type_FOSA": "Privé laic", "Soutien_PEPFAR": "Oui", "Milieu_Residence": "Rural",
+                "Observance_4j": "Mediocre", "Activite_Remuneree": "Oui",
+                "DSD_Recode": "Dispensation communautaire / VAD",
+                "Protocole_Recode": "Autre / Non spécifié"
+            }
+        },
+        {
+            "nom_fr": "Profil 3 — Homme, veuf, Adamaoua, observance modérée",
+            "nom_en": "Profile 3 — Male, widowed, Adamawa, moderate adherence",
+            "risque_attendu_fr": "Risque modéré-élevé attendu",
+            "risque_attendu_en": "Expected moderate-high risk",
+            "raw": {
+                "Tranche_Age": "50 ans et plus", "Sexe": "Masculin", "Niveau_Etude": "Secondaire Premier Cycle",
+                "Statut_Matrimonial": "Veuf (ve)", "Region": "Adamaoua",
+                "Type_FOSA": "Privé confessionnel", "Soutien_PEPFAR": "Non", "Milieu_Residence": "Rural",
+                "Observance_4j": "Modérée", "Activite_Remuneree": "Oui",
+                "DSD_Recode": "Standard (Suivi classique)", "Protocole_Recode": "TDF+3TC+EFV (TELE/TLE)"
+            }
+        },
+        {
+            "nom_fr": "Profil 4 — Jeune femme, célibataire, PEPFAR, bonne observance",
+            "nom_en": "Profile 4 — Young woman, single, PEPFAR, good adherence",
+            "risque_attendu_fr": "Risque variable selon données",
+            "risque_attendu_en": "Variable risk according to data",
+            "raw": {
+                "Tranche_Age": "21 à 24 Ans", "Sexe": "Féminin", "Niveau_Etude": "Supérieur",
+                "Statut_Matrimonial": "Célibataire", "Region": "Littoral",
+                "Type_FOSA": "Public", "Soutien_PEPFAR": "Oui", "Milieu_Residence": "Urbain",
+                "Observance_4j": "Bonne", "Activite_Remuneree": "Oui",
+                "DSD_Recode": "Standard (Suivi classique)", "Protocole_Recode": "TDF+3TC+DTG (TLD)"
+            }
+        },
+        {
+            "nom_fr": "Profil 5 — Observance médiocre, protocole IP, polygamie",
+            "nom_en": "Profile 5 — Poor adherence, PI protocol, polygamous",
+            "risque_attendu_fr": "Risque élevé attendu",
+            "risque_attendu_en": "Expected high risk",
+            "raw": {
+                "Tranche_Age": "25 à 49 Ans", "Sexe": "Masculin", "Niveau_Etude": "Jamais fréquenté",
+                "Statut_Matrimonial": "Marié(e) en polygamie", "Region": "Nord",
+                "Type_FOSA": "Public", "Soutien_PEPFAR": "Non", "Milieu_Residence": "Rural",
+                "Observance_4j": "Mediocre", "Activite_Remuneree": "Non",
+                "DSD_Recode": "Standard (Suivi classique)",
+                "Protocole_Recode": "Protocoles avec IP (ATV/r)"
+            }
+        },
+    ]
+
+    btn_diag = "▶ Lancer le diagnostic" if L == "fr" else "▶ Run diagnostic"
+    if st.button(btn_diag, type="primary", key="btn_diag"):
+        st.markdown("<br>", unsafe_allow_html=True)
+        comparaison_titre = "📊 Comparaison des 3 modèles sur les profils de test" if L == "fr" else "📊 Comparison of 3 models on test profiles"
+        st.markdown(f"#### {comparaison_titre}")
+
+        # Scorer chaque profil avec les 3 modèles
+        try:
+            m_xgb  = load_model("XGBoost",    meta_all["XGBoost"]["fichier"])
+            m_log  = load_model("Logistique",  meta_all["Logistique"]["fichier"])
+            m_svm  = load_model("SVM",         meta_all["SVM"]["fichier"])
+        except Exception as e:
+            st.error(f"Erreur chargement modèles : {e}")
+            m_xgb = m_log = m_svm = None
+
+        if m_xgb:
+            rows = []
+            for p in PROFILS_TEST:
+                raw = p["raw"]
+                nom = p[f"nom_{L}"]
+                attendu = p[f"risque_attendu_{L}"]
+                r = {"Profil" if L == "fr" else "Profile": nom,
+                     "Attendu" if L == "fr" else "Expected": attendu}
+                for m_name, m_obj in [("XGBoost", m_xgb), ("Logistique", m_log), ("SVM", m_svm)]:
+                    try:
+                        p_val = predict_with(m_obj, raw)
+                        r[m_name] = f"{p_val:.1%}"
+                    except Exception as e:
+                        r[m_name] = f"Err: {e}"
+                rows.append(r)
+
+            df_diag = pd.DataFrame(rows)
+            st.dataframe(df_diag, use_container_width=True, hide_index=True)
+
+            interp_note = (
+                "**Comment lire ce tableau :** Plus la probabilité est élevée, plus le modèle estime le risque d'interruption élevé. "
+                f"Le modèle actif (**{model_key}**) utilise le seuil {SEUIL:.0%} défini dans la sidebar. "
+                "Des différences entre modèles sont normales et reflètent leurs objectifs différents (Rappel vs Précision)."
+                if L == "fr" else
+                "**How to read this table:** Higher probability = higher estimated interruption risk. "
+                f"The active model (**{model_key}**) uses threshold {SEUIL:.0%} set in the sidebar. "
+                "Differences between models are normal and reflect their different objectives (Recall vs Precision)."
+            )
+            st.info(interp_note)
+
+    st.divider()
+
+    # Tableau de comparaison des métriques
+    comp_titre = "📋 Tableau comparatif des modèles" if L == "fr" else "📋 Model comparison table"
+    st.markdown(f"#### {comp_titre}")
+
+    comp_rows = []
+    for k, m in meta_all.items():
+        comp_rows.append({
+            ("Modèle" if L == "fr" else "Model"): k,
+            ("Rappel" if L == "fr" else "Recall"): f"{m['rappel']:.1%}",
+            ("Précision" if L == "fr" else "Precision"): f"{m['precision']:.1%}",
+            "F1-Score": f"{m['f1_score']:.3f}",
+            "AUC-ROC": f"{m['auc_roc']:.3f}",
+            ("Usage recommandé" if L == "fr" else "Recommended use"): m[usage_key],
+        })
+    st.dataframe(pd.DataFrame(comp_rows), use_container_width=True, hide_index=True)
+
+    seuil_expl = (
+        "**Rappel sur le seuil de décision :**\n\n"
+        "- **Seuil bas (0,30–0,40)** → Plus de patients détectés (Rappel ↑), mais plus de faux positifs (Précision ↓)\n"
+        "- **Seuil 0,50** → Seuil par défaut utilisé lors de l'évaluation des modèles\n"
+        "- **Seuil haut (0,60–0,75)** → Moins de faux positifs (Précision ↑), mais certains cas à risque manqués (Rappel ↓)\n\n"
+        "Ajustez le curseur dans la barre latérale selon la priorité clinique de votre structure."
+        if L == "fr" else
+        "**Decision threshold reminder:**\n\n"
+        "- **Low threshold (0.30–0.40)** → More patients detected (Recall ↑), but more false positives (Precision ↓)\n"
+        "- **Threshold 0.50** → Default threshold used during model evaluation\n"
+        "- **High threshold (0.60–0.75)** → Fewer false positives (Precision ↑), but some at-risk cases missed (Recall ↓)\n\n"
+        "Adjust the slider in the sidebar according to your facility's clinical priority."
+    )
+    st.info(seuil_expl)
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # PIED DE PAGE
