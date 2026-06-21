@@ -37,5 +37,18 @@
     "description_en": "Best precision (43.9%). Fewer false positives. Useful when follow-up resources are limited.",
     "usage_fr": "Prioriser la précision (ressources limitées)",
     "usage_en": "Prioritize precision (limited resources)"
+  },
+  "RandomForest": {
+    "fichier": "Random_Forest_v1.pkl",
+    "seuil_defaut": 0.50,
+    "rappel": 0.561,
+    "precision": 0.430,
+    "f1_score": 0.487,
+    "auc_roc": 0.678,
+    "smote": true,
+    "description_fr": "Ensemble d'arbres de décision. Robuste au surapprentissage. Importances de variables interprétables.",
+    "description_en": "Ensemble of decision trees. Robust to overfitting. Interpretable feature importances.",
+    "usage_fr": "Alternative robuste avec importances de variables",
+    "usage_en": "Robust alternative with feature importances"
   }
 }

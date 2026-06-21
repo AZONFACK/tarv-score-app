@@ -168,8 +168,8 @@ T = {
     },
     "imp_title":     {"fr": "🔬 Top {} facteurs les plus contributifs",
                       "en": "🔬 Top {} most contributing factors"},
-    "imp_xlabel":    {"fr": "Importance XGBoost (feature_importances_)",
-                      "en": "XGBoost Importance (feature_importances_)"},
+    "imp_xlabel":    {"fr": "Importance / Coefficient (valeur absolue)",
+                      "en": "Importance / Coefficient (absolute value)"},
     "imp_legend":    {
         "fr": "🔴 Importance forte &nbsp;|&nbsp; 🟠 Modérée &nbsp;|&nbsp; 🟢 Modérée-faible &nbsp;|&nbsp; 🔵 Faible",
         "en": "🔴 High importance &nbsp;|&nbsp; 🟠 Moderate &nbsp;|&nbsp; 🟢 Moderate-low &nbsp;|&nbsp; 🔵 Low",
@@ -356,14 +356,16 @@ except Exception as exc:
 # ─────────────────────────────────────────────────────────────────────────────
 MODEL_NAMES = {
     "fr": {
-        "XGBoost":    "🏆 XGBoost (Rappel max)",
-        "Logistique": "⚖️ Régression Logistique (Équilibré)",
-        "SVM":        "🎯 SVM (Précision max)",
+        "XGBoost":      "🏆 XGBoost (Rappel max)",
+        "Logistique":   "⚖️ Régression Logistique (Équilibré)",
+        "SVM":          "🎯 SVM (Précision max)",
+        "RandomForest": "🌲 Random Forest (Robuste)",
     },
     "en": {
-        "XGBoost":    "🏆 XGBoost (Max Recall)",
-        "Logistique": "⚖️ Logistic Regression (Balanced)",
-        "SVM":        "🎯 SVM (Max Precision)",
+        "XGBoost":      "🏆 XGBoost (Max Recall)",
+        "Logistique":   "⚖️ Logistic Regression (Balanced)",
+        "SVM":          "🎯 SVM (Max Precision)",
+        "RandomForest": "🌲 Random Forest (Robust)",
     },
 }
 
@@ -653,8 +655,21 @@ LABELS_MAP = {
 }
 
 
+def get_feature_importances(mdl):
+    """Retourne les importances selon le type de modèle."""
+    if hasattr(mdl, "feature_importances_"):
+        return mdl.feature_importances_
+    elif hasattr(mdl, "coef_"):
+        import numpy as np
+        coef = mdl.coef_
+        if coef.ndim > 1:
+            coef = coef[0]
+        return np.abs(coef)
+    return None
+
+
 def draw_importance(top_n: int = 10) -> plt.Figure:
-    imp  = model.feature_importances_
+    imp  = get_feature_importances(model)
     feat = pd.DataFrame({"Variable": colonnes_train, "Importance": imp})
     feat = feat.sort_values("Importance", ascending=False).head(top_n).sort_values("Importance")
 
@@ -1194,16 +1209,20 @@ with tab1:
             """, unsafe_allow_html=True)
     
         with col_r:
-            st.markdown(
-                f'<div style="font-size:0.83em;color:#777;margin-bottom:6px;">{t("imp_sub")}</div>',
-                unsafe_allow_html=True,
-            )
-            st.pyplot(draw_importance(10), use_container_width=True)
-            st.markdown(
-                f'<div style="font-size:0.78em;color:#888;margin-top:2px;text-align:center;">'
-                f'{t("imp_legend")}</div>',
-                unsafe_allow_html=True,
-            )
+            if get_feature_importances(model) is not None:
+                st.markdown(
+                    f'<div style="font-size:0.83em;color:#777;margin-bottom:6px;">{t("imp_sub")}</div>',
+                    unsafe_allow_html=True,
+                )
+                st.pyplot(draw_importance(10), use_container_width=True)
+                st.markdown(
+                    f'<div style="font-size:0.78em;color:#888;margin-top:2px;text-align:center;">'
+                    f'{t("imp_legend")}</div>',
+                    unsafe_allow_html=True,
+                )
+            else:
+                st.info("📊 Ce modèle ne fournit pas d'importances de variables (SVM RBF)." if L=="fr"
+                        else "📊 This model does not provide feature importances (SVM RBF).")
     
             with st.expander(t("recap_title")):
                 var_labels = {
@@ -1541,17 +1560,18 @@ The {model_key} model was trained with SMOTE (resampling) to balance classes. It
     btn_diag = "▶ Lancer le diagnostic" if L == "fr" else "▶ Run diagnostic"
     if st.button(btn_diag, type="primary", key="btn_diag"):
         st.markdown("<br>", unsafe_allow_html=True)
-        comparaison_titre = "📊 Comparaison des 3 modèles sur les profils de test" if L == "fr" else "📊 Comparison of 3 models on test profiles"
+        comparaison_titre = "📊 Comparaison des 4 modèles sur les profils de test" if L == "fr" else "📊 Comparison of 4 models on test profiles"
         st.markdown(f"#### {comparaison_titre}")
 
-        # Scorer chaque profil avec les 3 modèles
+        # Scorer chaque profil avec les 4 modèles
         try:
-            m_xgb  = load_model("XGBoost",    meta_all["XGBoost"]["fichier"])
-            m_log  = load_model("Logistique",  meta_all["Logistique"]["fichier"])
-            m_svm  = load_model("SVM",         meta_all["SVM"]["fichier"])
+            m_xgb  = load_model("XGBoost",      meta_all["XGBoost"]["fichier"])
+            m_log  = load_model("Logistique",    meta_all["Logistique"]["fichier"])
+            m_svm  = load_model("SVM",           meta_all["SVM"]["fichier"])
+            m_rf   = load_model("RandomForest",  meta_all["RandomForest"]["fichier"])
         except Exception as e:
             st.error(f"Erreur chargement modèles : {e}")
-            m_xgb = m_log = m_svm = None
+            m_xgb = m_log = m_svm = m_rf = None
 
         if m_xgb:
             rows = []
@@ -1561,7 +1581,7 @@ The {model_key} model was trained with SMOTE (resampling) to balance classes. It
                 attendu = p[f"risque_attendu_{L}"]
                 r = {"Profil" if L == "fr" else "Profile": nom,
                      "Attendu" if L == "fr" else "Expected": attendu}
-                for m_name, m_obj in [("XGBoost", m_xgb), ("Logistique", m_log), ("SVM", m_svm)]:
+                for m_name, m_obj in [("XGBoost", m_xgb), ("Logistique", m_log), ("SVM", m_svm), ("Random Forest", m_rf)]:
                     try:
                         p_val = predict_with(m_obj, raw)
                         r[m_name] = f"{p_val:.1%}"
