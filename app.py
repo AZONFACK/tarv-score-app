@@ -1046,6 +1046,45 @@ def generate_batch_pdf(df_res: pd.DataFrame, cnls_path: Path, issea_path: Path) 
     return bytes(pdf.output())
 
 
+def generate_individual_pdfs_zip(df_res: pd.DataFrame, lang: str,
+                                  cnls_path: Path, issea_path: Path) -> bytes:
+    """Empaquette une fiche PDF individuelle (comme l'onglet Saisie individuelle)
+    pour chaque patient d'un lot scoré, dans une archive ZIP."""
+    import io as _io
+    import re as _re
+    import zipfile
+
+    buf = _io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for i, row in df_res.reset_index(drop=True).iterrows():
+            niv_raw = str(row.get("Niveau de risque", ""))
+            if niv_raw.startswith("Élevé"):
+                niveau, reco = T["risk_high_lbl"][lang], T["reco_high"][lang]
+            elif niv_raw.startswith("Mod"):
+                niveau, reco = T["risk_mod_lbl"][lang], T["reco_mod"][lang]
+            else:
+                niveau, reco = T["risk_low_lbl"][lang], T["reco_low"][lang]
+
+            prob_val = row.get("Probabilité (%)", 0)
+            prob = float(prob_val) / 100 if pd.notna(prob_val) else 0.0
+            patient_vals = [row.get(c, "") for c in COLS_REQUIS]
+
+            try:
+                pdf_bytes = generate_pdf(
+                    patient_vals=patient_vals, prob=prob, niveau=niveau, reco=reco,
+                    lang=lang, cnls_path=cnls_path, issea_path=issea_path,
+                )
+            except Exception:
+                continue
+
+            id_val = str(row.get("ID_Patient", "")).strip() or f"patient_{i + 1}"
+            safe_id = _re.sub(r"[^A-Za-z0-9_-]", "_", id_val)
+            zf.writestr(f"fiche_{safe_id}.pdf", pdf_bytes)
+
+    buf.seek(0)
+    return buf.read()
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # ONGLETS PRINCIPAUX
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1434,7 +1473,7 @@ with tab2:
                                    else f"Dashboard not available: {e}")
 
                     st.markdown("<br>", unsafe_allow_html=True)
-                    dl1, dl2 = st.columns(2)
+                    dl1, dl2, dl3 = st.columns(3)
 
                     with dl1:
                         import io as _io
@@ -1465,6 +1504,25 @@ with tab2:
                             )
                         except Exception as e:
                             st.warning(f"PDF non disponible : {e}")
+
+                    with dl3:
+                        try:
+                            zip_bytes = generate_individual_pdfs_zip(
+                                df_res,
+                                lang=L,
+                                cnls_path=ASSETS / "cnls_logo.png",
+                                issea_path=ASSETS / "issea_logo.png",
+                            )
+                            st.download_button(
+                                label="⬇️ Fiches PDF individuelles (ZIP)" if L == "fr" else "⬇️ Individual PDF sheets (ZIP)",
+                                data=zip_bytes,
+                                file_name=f"TARV_fiches_individuelles_{datetime.now().strftime('%Y%m%d_%H%M')}.zip",
+                                mime="application/zip",
+                                use_container_width=True,
+                            )
+                        except Exception as e:
+                            st.warning(f"Fiches individuelles non disponibles : {e}" if L == "fr"
+                                       else f"Individual sheets not available: {e}")
 
 with tab3:
     diag_title = "🔬 Vérification du pipeline de scoring" if L == "fr" else "🔬 Scoring pipeline verification"
