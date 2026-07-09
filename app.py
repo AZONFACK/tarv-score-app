@@ -923,6 +923,57 @@ def score_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     return pd.concat([df.reset_index(drop=True), pd.DataFrame(results)], axis=1)
 
 
+DASHBOARD_VARS = {
+    "Region":        {"fr": "Région",     "en": "Region"},
+    "Type_FOSA":     {"fr": "Type de FOSA", "en": "Facility type"},
+    "Observance_4j": {"fr": "Observance",  "en": "Adherence"},
+    "Sexe":          {"fr": "Sexe",        "en": "Sex"},
+}
+
+
+def draw_dashboard(df_res: pd.DataFrame, lang: str) -> plt.Figure:
+    """Répartition des niveaux de risque et taux de risque élevé par variable clé."""
+    niveau_order = ["Faible / Low", "Modéré / Moderate", "Élevé / High"]
+    niveau_lbl   = {"fr": ["Faible", "Modéré", "Élevé"], "en": ["Low", "Moderate", "High"]}
+    colors_risk  = ["#27ae60", "#f39c12", "#e74c3c"]
+
+    fig, axes = plt.subplots(2, 2, figsize=(11, 7.5))
+    fig.patch.set_facecolor("#ffffff")
+
+    ax = axes[0, 0]
+    counts = df_res["Niveau de risque"].value_counts().reindex(niveau_order).fillna(0)
+    ax.pie(counts, labels=niveau_lbl[lang], autopct=lambda p: f"{p:.0f}%" if p > 0 else "",
+           colors=colors_risk, wedgeprops={"edgecolor": "white", "linewidth": 1.5},
+           textprops={"fontsize": 9})
+    ax.set_title("Répartition des niveaux de risque" if lang == "fr" else "Risk level distribution",
+                 fontsize=10.5, fontweight="700", color="#0b2d52", pad=10)
+
+    axes_bar = [axes[0, 1], axes[1, 0], axes[1, 1]]
+    for ax, var in zip(axes_bar, ["Region", "Type_FOSA", "Observance_4j"]):
+        ax.set_facecolor("#f7faff")
+        if var not in df_res.columns:
+            ax.axis("off")
+            continue
+        grp = (df_res.groupby(var)["Niveau de risque"]
+               .apply(lambda s: (s == "Élevé / High").mean() * 100)
+               .sort_values())
+        ax.barh(grp.index, grp.values, color="#e74c3c", height=0.6, edgecolor="#fff", linewidth=0.5)
+        for y, v in enumerate(grp.values):
+            ax.text(v + 1, y, f"{v:.0f}%", va="center", fontsize=8, color="#444")
+        label = DASHBOARD_VARS.get(var, {}).get(lang, var)
+        titre = f"% à risque élevé par {label}" if lang == "fr" else f"% high risk by {label}"
+        ax.set_title(titre, fontsize=10, fontweight="700", color="#0b2d52", pad=8)
+        ax.set_xlim(0, max(grp.values.max() * 1.25, 10) if len(grp) else 10)
+        ax.tick_params(labelsize=8.5, colors="#333")
+        for sp in ["top", "right"]:
+            ax.spines[sp].set_visible(False)
+        ax.spines["left"].set_color("#e0e8f4")
+        ax.spines["bottom"].set_color("#e0e8f4")
+
+    plt.tight_layout(pad=1.4)
+    return fig
+
+
 def generate_batch_pdf(df_res: pd.DataFrame, cnls_path: Path, issea_path: Path) -> bytes:
     """PDF récapitulatif de tous les patients scorés."""
     pdf = FPDF(orientation='L')
@@ -1318,6 +1369,15 @@ with tab2:
                     c2.metric("🟢 Faible / Low",   n_low)
                     c3.metric("🟠 Modéré / Mod",   n_mod)
                     c4.metric("🔴 Élevé / High",   n_high)
+
+                    st.markdown("<br>", unsafe_allow_html=True)
+                    dash_titre = "📊 Tableau de bord descriptif" if L == "fr" else "📊 Descriptive dashboard"
+                    st.markdown(f"#### {dash_titre}")
+                    try:
+                        st.pyplot(draw_dashboard(df_res, L), use_container_width=True)
+                    except Exception as e:
+                        st.warning(f"Tableau de bord non disponible : {e}" if L == "fr"
+                                   else f"Dashboard not available: {e}")
 
                     st.markdown("<br>", unsafe_allow_html=True)
                     dl1, dl2 = st.columns(2)
