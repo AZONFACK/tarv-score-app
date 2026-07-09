@@ -656,14 +656,19 @@ def safe(text: str) -> str:
     return text.encode('latin-1', 'replace').decode('latin-1')
 
 
-def generate_pdf(patient_vals: list, prob: float, niveau: str,
+def generate_pdf(patient_vals: list, prob: float, niveau: str, niveau_key: str,
                  reco: str, lang: str, cnls_path: Path, issea_path: Path) -> bytes:
-    """Génère une fiche PDF patient prête à imprimer."""
+    """Génère une fiche PDF patient prête à imprimer.
 
-    if prob < 0.30:
+    niveau_key doit valoir "low", "mod" ou "high" : la couleur doit suivre le
+    meme critere que le libelle "niveau" (deja decide ailleurs selon le
+    seuil SEUIL, reglable), pas un seuil fixe recalcule ici.
+    """
+
+    if niveau_key == "low":
         r, g, b       = 39, 174, 96
         bg_r, bg_g, bg_b = 213, 245, 227
-    elif prob < 0.50:
+    elif niveau_key == "mod":
         r, g, b       = 183, 149, 11
         bg_r, bg_g, bg_b = 255, 251, 230
     else:
@@ -1059,11 +1064,11 @@ def generate_individual_pdfs_zip(df_res: pd.DataFrame, lang: str,
         for i, row in df_res.reset_index(drop=True).iterrows():
             niv_raw = str(row.get("Niveau de risque", ""))
             if niv_raw.startswith("Élevé"):
-                niveau, reco = T["risk_high_lbl"][lang], T["reco_high"][lang]
+                niveau_key, niveau, reco = "high", T["risk_high_lbl"][lang], T["reco_high"][lang]
             elif niv_raw.startswith("Mod"):
-                niveau, reco = T["risk_mod_lbl"][lang], T["reco_mod"][lang]
+                niveau_key, niveau, reco = "mod", T["risk_mod_lbl"][lang], T["reco_mod"][lang]
             else:
-                niveau, reco = T["risk_low_lbl"][lang], T["reco_low"][lang]
+                niveau_key, niveau, reco = "low", T["risk_low_lbl"][lang], T["reco_low"][lang]
 
             prob_val = row.get("Probabilité (%)", 0)
             prob = float(prob_val) / 100 if pd.notna(prob_val) else 0.0
@@ -1071,8 +1076,8 @@ def generate_individual_pdfs_zip(df_res: pd.DataFrame, lang: str,
 
             try:
                 pdf_bytes = generate_pdf(
-                    patient_vals=patient_vals, prob=prob, niveau=niveau, reco=reco,
-                    lang=lang, cnls_path=cnls_path, issea_path=issea_path,
+                    patient_vals=patient_vals, prob=prob, niveau=niveau, niveau_key=niveau_key,
+                    reco=reco, lang=lang, cnls_path=cnls_path, issea_path=issea_path,
                 )
             except Exception:
                 continue
@@ -1186,19 +1191,19 @@ with tab1:
             prob = predict(raw_fr)
 
         if prob < 0.30:
-            niveau, color        = t("risk_low_lbl"),  "#27ae60"
+            niveau_key, niveau, color = "low", t("risk_low_lbl"),  "#27ae60"
             emoji_r              = "🟢"
             bg_card, bd_card     = "#eafaf1", "#27ae60"
             bg_reco, bd_reco, tc = "#eafaf1", "#27ae60", "#1e5f3a"
             reco = t("reco_low")
         elif prob < SEUIL:
-            niveau, color        = t("risk_mod_lbl"),  "#b7950b"
+            niveau_key, niveau, color = "mod", t("risk_mod_lbl"),  "#b7950b"
             emoji_r              = "🟡"
             bg_card, bd_card     = "#fffbe6", "#f1c40f"
             bg_reco, bd_reco, tc = "#fffbe6", "#f1c40f", "#7a6200"
             reco = t("reco_mod")
         else:
-            niveau, color        = t("risk_high_lbl"), "#e74c3c"
+            niveau_key, niveau, color = "high", t("risk_high_lbl"), "#e74c3c"
             emoji_r              = "🔴"
             bg_card, bd_card     = "#fdedec", "#e74c3c"
             bg_reco, bd_reco, tc = "#fdedec", "#e74c3c", "#7b241c"
@@ -1304,6 +1309,7 @@ with tab1:
                 patient_vals=patient_vals,
                 prob=prob,
                 niveau=niveau,
+                niveau_key=niveau_key,
                 reco=reco,
                 lang=L,
                 cnls_path=ASSETS / "cnls_logo.png",
