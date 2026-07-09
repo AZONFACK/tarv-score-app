@@ -1,16 +1,18 @@
 # =============================================================================
-# TARV-Score — Entraînement du modèle de production (12 variables)
+# TARV-Score — Entraînement du modèle de production (14 variables)
 # Script autonome et reproductible : sélectionne le meilleur des 4 candidats
-# (Rég. Logistique, Random Forest, SVM linéaire, XGBoost) sur les 12 variables
+# (Rég. Logistique, Random Forest, SVM linéaire, XGBoost) sur les 14 variables
 # retenues pour l'application, et exporte les artefacts nécessaires à
 # l'application Streamlit (app.py) dans ./modeles/.
 #
 # Sélection des variables : 8 choisies par analyse combinée Chi²/V de Cramér +
 # test de Wald joint (régression logistique multivariée) + importances
 # agrégées Random Forest & XGBoost (calculée sur Base_Traitee.xlsx et les
-# modèles à 21 variables du notebook analyse_TARV_v5_FINAL_8.ipynb), et
-# 4 variables protégées par la littérature (Sexe, Tranche_Age,
-# Statut_Matrimonial, Soutien_PEPFAR) — cf. Étape 12 du notebook.
+# modèles à 21 variables du notebook analyse_TARV_v5_FINAL_8.ipynb), 4
+# variables protégées par la littérature (Sexe, Tranche_Age,
+# Statut_Matrimonial, Soutien_PEPFAR) — cf. Étape 12 du notebook — et 2
+# variables ajoutées à la demande du CNLS (Soutien_Familial,
+# Traitement_Alternatif).
 # =============================================================================
 import io
 import json
@@ -39,6 +41,7 @@ VARS_FIN = [
     "Sexe", "Tranche_Age", "Statut_Matrimonial", "Soutien_PEPFAR",
     "Observance_4j", "Region", "Religion", "Depenses_Mensuelles",
     "DSD_Recode", "Niveau_Etude", "Retesting", "Type_FOSA",
+    "Soutien_Familial", "Traitement_Alternatif",
 ]
 
 REFERENCES = {
@@ -54,6 +57,8 @@ REFERENCES = {
     "Niveau_Etude":         "Jamais fréquenté",
     "Retesting":            "Non",
     "Type_FOSA":            "Public",
+    "Soutien_Familial":     "Oui",
+    "Traitement_Alternatif": "Non",
 }
 
 
@@ -169,7 +174,7 @@ def main():
     }
 
     print("\n" + "=" * 70)
-    print("ETAPE 3 : OPTIMISATION DU SEUIL + EVALUATION (seuil = 0.50)")
+    print("ETAPE 3 : OPTIMISATION DU SEUIL + EVALUATION (au seuil optimal de chaque modèle)")
     print("=" * 70)
 
     seuils_optimaux = {}
@@ -186,28 +191,44 @@ def main():
                 meilleur_f1, meilleur_seuil = f1_s, s
         seuils_optimaux[nom] = float(meilleur_seuil)
 
-        preds = (probs >= 0.50).astype(int)
+        # Évaluation au seuil propre à chaque modèle (et non à 0.50 fixe) :
+        # c'est ce seuil qui sera réellement déployé dans l'application, donc
+        # les métriques de comparaison doivent refléter ce point de fonctionnement.
+        preds = (probs >= meilleur_seuil).astype(int)
         cm = confusion_matrix(y_test, preds)
         tn, fp, fn, tp = cm.ravel()
+        sensibilite = tp / (tp + fn) if (tp + fn) > 0 else 0
+        specificite = tn / (tn + fp) if (tn + fp) > 0 else 0
+        precision = precision_score(y_test, preds, zero_division=0)
+        auc_roc = roc_auc_score(y_test, probs)
+        auc_pr = average_precision_score(y_test, probs)
+        brier = brier_score_loss(y_test, probs)
         resultats.append({
             "Modèle": nom,
-            "Sensibilité": tp / (tp + fn) if (tp + fn) > 0 else 0,
-            "Spécificité": tn / (tn + fp) if (tn + fp) > 0 else 0,
-            "Précision": precision_score(y_test, preds, zero_division=0),
+            "Sensibilité": sensibilite,
+            "Spécificité": specificite,
+            "Précision": precision,
             "F1-Score": f1_score(y_test, preds),
-            "AUC-ROC": roc_auc_score(y_test, probs),
-            "AUC-PR": average_precision_score(y_test, probs),
-            "Brier": brier_score_loss(y_test, probs),
+            "AUC-ROC": auc_roc,
+            "AUC-PR": auc_pr,
+            "Brier": brier,
+            # Score composite : moyenne à poids égal des 6 métriques cliniquement
+            # pertinentes (Brier inversé car "plus petit = meilleur"). Choisi pour
+            # ne sacrifier aucune dimension (contexte de retrait des bailleurs :
+            # le modèle déployé doit être robuste sur tous les plans, pas
+            # seulement optimal sur un seul critère comme le F1-Score).
+            "Score composite": (sensibilite + specificite + precision
+                                 + auc_roc + auc_pr + (1 - brier)) / 6,
             "Seuil optimal": meilleur_seuil,
         })
 
     df_res = pd.DataFrame(resultats)
     print(df_res.round(4).to_string(index=False))
 
-    best_nom = df_res.loc[df_res["F1-Score"].idxmax(), "Modèle"]
-    best_row = df_res.loc[df_res["F1-Score"].idxmax()]
+    best_nom = df_res.loc[df_res["Score composite"].idxmax(), "Modèle"]
+    best_row = df_res.loc[df_res["Score composite"].idxmax()]
     best_model = best_models[best_nom]
-    print(f"\n*** MODELE RETENU (meilleur F1-Score) : {best_nom} ***")
+    print(f"\n*** MODELE RETENU (meilleur Score composite, 6 métriques à poids égal) : {best_nom} ***")
 
     print("\n" + "=" * 70)
     print("ETAPE 4 : SAUVEGARDE DES ARTEFACTS POUR L'APPLICATION")
@@ -240,6 +261,7 @@ def main():
         "auc_roc": float(best_row["AUC-ROC"]),
         "auc_pr": float(best_row["AUC-PR"]),
         "brier": float(best_row["Brier"]),
+        "score_composite": float(best_row["Score composite"]),
         "n_train": int(len(X_train)),
         "n_test": int(len(X_test)),
         "n_variables": len(VARS_FIN),

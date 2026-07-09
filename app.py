@@ -3,8 +3,9 @@
 # Mémoire ISE3 | ISSEA-CEMAC 2025-2026 | CNLS / GTC / Cameroun
 # Auteur : AZONFACK MYRIAM DOLVIANNE
 # Modèle : meilleur des 4 candidats (Rég. Logistique / Random Forest / SVM /
-#          XGBoost), entraîné en Class Weight sur les 12 variables les plus
-#          explicatives de l'interruption au TARV (cf. train_model.py).
+#          XGBoost), sélectionné sur score composite (6 métriques à poids égal),
+#          entraîné en Class Weight sur les 14 variables les plus explicatives
+#          de l'interruption au TARV (cf. train_model.py).
 # =============================================================================
 
 import base64
@@ -64,12 +65,16 @@ T = {
     "ctx_body":      {
         "fr": ("Données CNLS 2024 · Enquête nationale auprès de **2 720 PvVIH** dans les 10 régions du Cameroun.\n\n"
                "Modèle retenu parmi 4 candidats comparés (Régression Logistique, Random Forest, SVM, XGBoost) "
-               "sur **12 variables** : 8 sélectionnées statistiquement et 4 protégées par la littérature "
-               "(Sexe, Âge, Statut matrimonial, Soutien PEPFAR)."),
+               "sur **14 variables** : 8 sélectionnées statistiquement, 4 protégées par la littérature "
+               "(Sexe, Âge, Statut matrimonial, Soutien PEPFAR) et 2 ajoutées à la demande du CNLS "
+               "(Soutien familial, Traitement alternatif). Sélection sur **score composite** "
+               "(Sensibilité, Spécificité, Précision, AUC-ROC, AUC-PR, Brier à poids égal)."),
         "en": ("CNLS 2024 data · National survey of **2,720 PLHIV** across Cameroon's 10 regions.\n\n"
                "Model selected among 4 compared candidates (Logistic Regression, Random Forest, SVM, XGBoost) "
-               "on **12 variables**: 8 statistically selected and 4 protected by the literature "
-               "(Sex, Age, Marital status, PEPFAR support)."),
+               "on **14 variables**: 8 statistically selected, 4 protected by the literature "
+               "(Sex, Age, Marital status, PEPFAR support) and 2 added at CNLS's request "
+               "(Family support, Alternative treatment). Selected on a **composite score** "
+               "(Sensitivity, Specificity, Precision, AUC-ROC, AUC-PR, Brier equally weighted)."),
     },
     "disclaimer":    {
         "fr": "⚠️ Outil d'aide à la décision.<br>Ne remplace pas le jugement clinique.",
@@ -91,8 +96,8 @@ T = {
 
     # ── Formulaire ───────────────────────────────────────────────────────────
     "form_intro":    {
-        "fr": "📋 Profil du patient — 12 variables du modèle {}",
-        "en": "📋 Patient Profile — 12 variables of the {} model",
+        "fr": "📋 Profil du patient — 14 variables du modèle {}",
+        "en": "📋 Patient Profile — 14 variables of the {} model",
     },
     "form_sub":      {
         "fr": "Renseignez toutes les caractéristiques, puis cliquez sur <strong>Calculer le Score</strong>.",
@@ -122,6 +127,9 @@ T = {
     "niveau_etude":  {"fr": "Niveau d'étude",        "en": "Education Level"},
     "depenses":      {"fr": "Dépenses mensuelles liées au traitement",
                       "en": "Monthly Treatment-related Expenses"},
+    "soutien_familial": {"fr": "Soutien familial",   "en": "Family support"},
+    "traitement_alt":   {"fr": "Recours à un traitement alternatif",
+                          "en": "Use of alternative treatment"},
 
     "oui":           {"fr": "Oui",                   "en": "Yes"},
     "non":           {"fr": "Non",                   "en": "No"},
@@ -580,6 +588,8 @@ VARIABLE_LABELS = {
     "Tranche_Age":          {"fr": "Tranche d'âge",                "en": "Age group"},
     "Statut_Matrimonial":   {"fr": "Statut matrimonial",           "en": "Marital status"},
     "Soutien_PEPFAR":       {"fr": "Soutien PEPFAR",               "en": "PEPFAR support"},
+    "Soutien_Familial":     {"fr": "Soutien familial",             "en": "Family support"},
+    "Traitement_Alternatif": {"fr": "Traitement alternatif",       "en": "Alternative treatment"},
 }
 MODALITY_EN = {
     "Oui": "Yes", "Non renseigné": "Not specified", "Mediocre": "Poor",
@@ -743,10 +753,12 @@ def generate_pdf(patient_vals: list, prob: float, niveau: str,
     var_labels = {
         'fr': ['Region', 'Type de FOSA', 'Mode DSD', 'Soutien PEPFAR',
                'Observance (4 jours)', 'Retesting VIH', 'Sexe', "Tranche d'age",
-               'Statut matrimonial', 'Religion', "Niveau d'etude", 'Depenses mensuelles'],
+               'Statut matrimonial', 'Religion', "Niveau d'etude", 'Depenses mensuelles',
+               'Soutien familial', 'Traitement alternatif'],
         'en': ['Region', 'Health Facility Type', 'DSD Mode', 'PEPFAR Support',
                'Adherence (4 days)', 'HIV Retesting', 'Sex', 'Age Group',
-               'Marital Status', 'Religion', 'Education Level', 'Monthly Expenses'],
+               'Marital Status', 'Religion', 'Education Level', 'Monthly Expenses',
+               'Family support', 'Alternative treatment'],
     }
     pdf.set_line_width(0.3)
     for i, (var, val) in enumerate(zip(var_labels[lang], patient_vals)):
@@ -789,6 +801,7 @@ COLS_REQUIS = [
     "Region", "Type_FOSA", "DSD_Recode", "Soutien_PEPFAR",
     "Observance_4j", "Retesting", "Sexe", "Tranche_Age",
     "Statut_Matrimonial", "Religion", "Niveau_Etude", "Depenses_Mensuelles",
+    "Soutien_Familial", "Traitement_Alternatif",
 ]
 
 VALEURS_VALIDES = {
@@ -804,6 +817,8 @@ VALEURS_VALIDES = {
     "Religion":            T["religion_opts"]["fr"],
     "Niveau_Etude":        T["niveau_etude_opts"]["fr"],
     "Depenses_Mensuelles": T["depenses_opts"]["fr"],
+    "Soutien_Familial":    ["Oui", "Non"],
+    "Traitement_Alternatif": ["Oui", "Non"],
 }
 
 
@@ -836,7 +851,7 @@ def generate_template() -> bytes:
     exemple = ["P001", "Centre", "Public", "Standard", "Oui",
                "Bonne", "Non", "Féminin", "25 à 49 Ans",
                "Marié(e) en monogamie", "Catholique", "Jamais fréquenté",
-               "Moins de 5 000"]
+               "Moins de 5 000", "Oui", "Non"]
     for c, val in enumerate(exemple, 1):
         cell = ws.cell(row=2, column=c, value=val)
         cell.fill = PatternFill("solid", fgColor="EEF5FF")
@@ -898,6 +913,8 @@ def score_dataframe(df: pd.DataFrame) -> pd.DataFrame:
                 "Religion":            str(row.get("Religion", "")).strip(),
                 "Niveau_Etude":        str(row.get("Niveau_Etude", "")).strip(),
                 "Depenses_Mensuelles": str(row.get("Depenses_Mensuelles", "")).strip(),
+                "Soutien_Familial":    str(row.get("Soutien_Familial", "")).strip(),
+                "Traitement_Alternatif": str(row.get("Traitement_Alternatif", "")).strip(),
             }
             prob = predict(raw)
             if prob < 0.30:
@@ -1014,6 +1031,7 @@ with tab1:
             type_fosa = st.selectbox(t("type_fosa"), T["type_fosa_opts"][L], key=f"{L}_fosa")
             dsd       = st.selectbox(t("dsd"),       T["dsd_opts"][L],       key=f"{L}_dsd")
             pepfar    = st.radio(t("pepfar"), [t("non"), t("oui")], horizontal=True, key=f"{L}_pepfar")
+            soutien_familial = st.radio(t("soutien_familial"), [t("non"), t("oui")], horizontal=True, key=f"{L}_soutien_fam")
 
         with col2:
             st.markdown(
@@ -1023,6 +1041,7 @@ with tab1:
                 f'{t("sec_thera")}</div>', unsafe_allow_html=True)
             observance = st.selectbox(t("observance"), T["observance_opts"][L], key=f"{L}_observance")
             retesting  = st.radio(t("retesting"), [t("non"), t("oui")], horizontal=True, key=f"{L}_retesting")
+            traitement_alt = st.radio(t("traitement_alt"), [t("non"), t("oui")], horizontal=True, key=f"{L}_traitement_alt")
             sexe       = st.radio(t("sexe"), [t("feminin"), t("masculin")], horizontal=True, key=f"{L}_sexe")
             tranche_age = st.selectbox(t("tranche_age"), T["tranche_age_opts"][L], key=f"{L}_age")
 
@@ -1048,8 +1067,10 @@ with tab1:
         type_fosa_fr = FOSA_INTERNAL[type_fosa]
         dsd_fr       = DSD_EN2FR.get(dsd, dsd)                    if L == "en" else dsd
         pepfar_fr    = "Oui" if pepfar == t("oui") else "Non"
+        soutien_fam_fr = "Oui" if soutien_familial == t("oui") else "Non"
         observ_fr    = OBSERVANCE_INTERNAL[observance]
         retesting_fr = "Oui" if retesting == t("oui") else "Non"
+        traitement_alt_fr = "Oui" if traitement_alt == t("oui") else "Non"
         sexe_fr      = "Masculin" if sexe == t("masculin") else "Féminin"
         tranche_fr   = TRANCHE_EN2FR.get(tranche_age, tranche_age) if L == "en" else tranche_age
         statut_fr    = STATUT_EN2FR.get(statut_mat, statut_mat)   if L == "en" else statut_mat
@@ -1070,6 +1091,8 @@ with tab1:
             "Religion":            religion_fr,
             "Niveau_Etude":        etude_fr,
             "Depenses_Mensuelles": depenses_fr,
+            "Soutien_Familial":    soutien_fam_fr,
+            "Traitement_Alternatif": traitement_alt_fr,
         }
 
         with st.spinner(t("spinner")):
@@ -1147,16 +1170,19 @@ with tab1:
                 var_labels = {
                     "fr": ["Région","Type de FOSA","Mode DSD","Soutien PEPFAR",
                            "Observance (4j)","Retesting VIH","Sexe","Tranche d'âge",
-                           "Statut matrimonial","Religion","Niveau d'étude","Dépenses mensuelles"],
+                           "Statut matrimonial","Religion","Niveau d'étude","Dépenses mensuelles",
+                           "Soutien familial","Traitement alternatif"],
                     "en": ["Region","Health Facility Type","DSD Mode","PEPFAR Support",
                            "Adherence (4 days)","HIV Retesting","Sex","Age Group",
-                           "Marital Status","Religion","Education Level","Monthly Expenses"],
+                           "Marital Status","Religion","Education Level","Monthly Expenses",
+                           "Family support","Alternative treatment"],
                 }
                 recap = pd.DataFrame({
                     t("recap_var"): var_labels[L],
                     t("recap_val"): [region, type_fosa, dsd, pepfar,
                                      observance, retesting, sexe, tranche_age,
-                                     statut_mat, religion, niveau_etude, depenses],
+                                     statut_mat, religion, niveau_etude, depenses,
+                                     soutien_familial, traitement_alt],
                 })
                 st.dataframe(recap, use_container_width=True, hide_index=True)
 
@@ -1171,7 +1197,8 @@ with tab1:
             unsafe_allow_html=True,
         )
         patient_vals = [region, type_fosa, dsd, pepfar, observance, retesting,
-                        sexe, tranche_age, statut_mat, religion, niveau_etude, depenses]
+                        sexe, tranche_age, statut_mat, religion, niveau_etude, depenses,
+                        soutien_familial, traitement_alt]
         try:
             pdf_bytes = generate_pdf(
                 patient_vals=patient_vals,
@@ -1354,8 +1381,9 @@ with tab3:
         "fr": f"""
 **Comment lire le score ?**
 
-Le modèle {MODEL_NAME} a été entraîné en Class Weight (rééquilibrage des classes sans duplication de données) sur les 10 variables les plus associées statistiquement à l'interruption du TARV. Il est optimisé pour :
+Le modèle {MODEL_NAME} a été entraîné en Class Weight (rééquilibrage des classes sans duplication de données) sur les 14 variables les plus associées statistiquement à l'interruption du TARV. Il a été retenu parmi 4 candidats sur la base d'un **score composite** combinant à poids égal 6 métriques (Sensibilité, Spécificité, Précision, AUC-ROC, AUC-PR, Brier) — un choix robuste sur toutes les dimensions plutôt qu'optimal sur un seul critère :
 - **Rappel = {meta['rappel']:.0%}** → détecter un maximum d'interrupteurs réels
+- **Spécificité = {meta['specificite']:.0%}** → éviter les fausses alertes chez les patients stables
 - **Précision = {meta['precision']:.0%}** → sur les patients classés « à risque », {meta['precision']:.0%} interrompront réellement
 
 **Les catégories de référence** (Centre, FOSA publique, Standard, observance bonne...) sont les profils les plus **communs dans les données**. Le modèle compare chaque patient à ce profil de base.
@@ -1365,8 +1393,9 @@ Le modèle {MODEL_NAME} a été entraîné en Class Weight (rééquilibrage des 
         "en": f"""
 **How to read the score?**
 
-The {MODEL_NAME} model was trained with Class Weight (class rebalancing without data duplication) on the 10 variables most statistically associated with ART interruption. It is optimized for:
+The {MODEL_NAME} model was trained with Class Weight (class rebalancing without data duplication) on the 14 variables most statistically associated with ART interruption. It was selected among 4 candidates based on a **composite score** equally combining 6 metrics (Sensitivity, Specificity, Precision, AUC-ROC, AUC-PR, Brier) — a choice robust across all dimensions rather than optimal on a single criterion:
 - **Recall = {meta['rappel']:.0%}** → detect as many true interruptors as possible
+- **Specificity = {meta['specificite']:.0%}** → avoid false alarms among stable patients
 - **Precision = {meta['precision']:.0%}** → out of patients classified "at risk", {meta['precision']:.0%} will actually interrupt
 
 **Reference categories** (Centre, public facility, Standard, good adherence...) are the **most common profiles in the data**. The model compares each patient to this baseline profile.
@@ -1402,6 +1431,7 @@ The {MODEL_NAME} model was trained with Class Weight (class rebalancing without 
                 "Statut_Matrimonial": "Marié(e) en monogamie",
                 "Religion": "Catholique", "Niveau_Etude": "Jamais fréquenté",
                 "Depenses_Mensuelles": "Moins de 5 000",
+                "Soutien_Familial": "Oui", "Traitement_Alternatif": "Non",
             },
         },
         {
@@ -1416,6 +1446,7 @@ The {MODEL_NAME} model was trained with Class Weight (class rebalancing without 
                 "Statut_Matrimonial": "Célibataire",
                 "Religion": "Musulman", "Niveau_Etude": "Jamais fréquenté",
                 "Depenses_Mensuelles": "25 000 et plus",
+                "Soutien_Familial": "Non", "Traitement_Alternatif": "Oui",
             },
         },
         {
@@ -1430,6 +1461,7 @@ The {MODEL_NAME} model was trained with Class Weight (class rebalancing without 
                 "Statut_Matrimonial": "Veuf (ve)",
                 "Religion": "Protestant", "Niveau_Etude": "Secondaire Premier Cycle",
                 "Depenses_Mensuelles": "[10 000 - 25 000[",
+                "Soutien_Familial": "Oui", "Traitement_Alternatif": "Non",
             },
         },
         {
@@ -1444,6 +1476,7 @@ The {MODEL_NAME} model was trained with Class Weight (class rebalancing without 
                 "Statut_Matrimonial": "Marié(e) en monogamie",
                 "Religion": "Catholique", "Niveau_Etude": "Supérieur",
                 "Depenses_Mensuelles": "Moins de 5 000",
+                "Soutien_Familial": "Oui", "Traitement_Alternatif": "Non",
             },
         },
     ]
@@ -1486,11 +1519,21 @@ The {MODEL_NAME} model was trained with Class Weight (class rebalancing without 
     comp_row = pd.DataFrame([{
         ("Modèle" if L == "fr" else "Model"): MODEL_NAME,
         ("Rappel" if L == "fr" else "Recall"): f"{meta['rappel']:.1%}",
+        ("Spécificité" if L == "fr" else "Specificity"): f"{meta['specificite']:.1%}",
         ("Précision" if L == "fr" else "Precision"): f"{meta['precision']:.1%}",
-        "F1-Score": f"{meta['f1_score']:.3f}",
         "AUC-ROC": f"{meta['auc_roc']:.3f}",
+        "AUC-PR": f"{meta['auc_pr']:.3f}",
+        "Brier": f"{meta['brier']:.3f}",
+        ("Score composite" if L == "fr" else "Composite score"): f"{meta['score_composite']:.3f}",
     }])
     st.dataframe(comp_row, use_container_width=True, hide_index=True)
+    st.caption(
+        "Score composite = moyenne à poids égal des 6 métriques ci-dessus (Brier inversé). "
+        "Critère de sélection retenu parmi les 4 modèles candidats, pour ne privilégier aucune dimension."
+        if L == "fr" else
+        "Composite score = equal-weight average of the 6 metrics above (Brier inverted). "
+        "Selection criterion among the 4 candidate models, so no single dimension is favoured."
+    )
 
     seuil_expl = (
         "**Rappel sur le seuil de décision :**\n\n"
