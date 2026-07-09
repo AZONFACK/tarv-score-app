@@ -2,7 +2,9 @@
 # TARV-Score — Application de scoring clinique | Bilingual FR/EN
 # Mémoire ISE3 | ISSEA-CEMAC 2025-2026 | CNLS / GTC / Cameroun
 # Auteur : AZONFACK MYRIAM DOLVIANNE
-# Modèle : XGBoost — Rappel 83.8 % | AUC-ROC 0.704
+# Modèle : meilleur des 4 candidats (Rég. Logistique / Random Forest / SVM /
+#          XGBoost), entraîné en Class Weight sur les 10 variables les plus
+#          explicatives de l'interruption au TARV (cf. train_model.py).
 # =============================================================================
 
 import base64
@@ -44,7 +46,7 @@ T = {
     "recall_lbl":    {"fr": "Rappel",                "en": "Recall"},
     "algo_lbl":      {"fr": "Algorithme",            "en": "Algorithm"},
     "seuil_lbl":     {"fr": "Seuil",                 "en": "Threshold"},
-    "smote_lbl":     {"fr": "SMOTE ✓",               "en": "SMOTE ✓"},
+    "cw_lbl":        {"fr": "Class Weight ✓",        "en": "Class Weight ✓"},
     "train_lbl":     {"fr": "Entraînement",          "en": "Training"},
     "test_lbl":      {"fr": "Test",                  "en": "Test"},
 
@@ -60,8 +62,12 @@ T = {
     "ctx_title":     {"fr": "ℹ️ Contexte de l'étude",
                       "en": "ℹ️ Study Context"},
     "ctx_body":      {
-        "fr": "Données CNLS 2024 · Enquête nationale auprès de **2 720 PvVIH** dans les 10 régions du Cameroun.\n\n4 modèles comparés : Régression Logistique, Random Forest, SVM, **XGBoost** (retenu).",
-        "en": "CNLS 2024 data · National survey of **2,720 PLHIV** across Cameroon's 10 regions.\n\n4 models compared: Logistic Regression, Random Forest, SVM, **XGBoost** (selected).",
+        "fr": ("Données CNLS 2024 · Enquête nationale auprès de **2 720 PvVIH** dans les 10 régions du Cameroun.\n\n"
+               "Modèle retenu parmi 4 candidats comparés (Régression Logistique, Random Forest, SVM, XGBoost) "
+               "sur les **10 variables** les plus associées statistiquement à l'interruption du TARV."),
+        "en": ("CNLS 2024 data · National survey of **2,720 PLHIV** across Cameroon's 10 regions.\n\n"
+               "Model selected among 4 compared candidates (Logistic Regression, Random Forest, SVM, XGBoost) "
+               "on the **10 variables** most statistically associated with ART interruption."),
     },
     "disclaimer":    {
         "fr": "⚠️ Outil d'aide à la décision.<br>Ne remplace pas le jugement clinique.",
@@ -78,48 +84,44 @@ T = {
         "en": "Prediction of the risk of Antiretroviral Treatment interruption",
     },
     "badge_cnls":    {"fr": "CNLS Cameroun",         "en": "NACC Cameroon"},
-    "badge_xgb":     {"fr": "XGBoost Champion",      "en": "XGBoost Champion"},
     "badge_recall":  {"fr": "Rappel",                 "en": "Recall"},
     "badge_auc":     {"fr": "AUC-ROC",               "en": "AUC-ROC"},
 
     # ── Formulaire ───────────────────────────────────────────────────────────
     "form_intro":    {
-        "fr": "📋 Profil du patient — 12 variables du modèle XGBoost",
-        "en": "📋 Patient Profile — 12 variables of the XGBoost model",
+        "fr": "📋 Profil du patient — 10 variables du modèle {}",
+        "en": "📋 Patient Profile — 10 variables of the {} model",
     },
     "form_sub":      {
         "fr": "Renseignez toutes les caractéristiques, puis cliquez sur <strong>Calculer le Score</strong>.",
         "en": "Fill in all characteristics, then click <strong>Calculate Score</strong>.",
     },
-    "sec_loc":       {"fr": "📍 Localisation & Structure",
-                      "en": "📍 Location & Facility"},
-    "sec_socio":     {"fr": "👤 Profil socio-démographique",
-                      "en": "👤 Socio-demographic Profile"},
+    "sec_soins":     {"fr": "📍 Parcours de soins",
+                      "en": "📍 Care Pathway"},
     "sec_thera":     {"fr": "💊 Suivi thérapeutique",
                       "en": "💊 Therapeutic Follow-up"},
+    "sec_socio":     {"fr": "👤 Profil socio-démographique",
+                      "en": "👤 Socio-demographic Profile"},
 
     # Variables
     "region":        {"fr": "Région",                "en": "Region"},
     "type_fosa":     {"fr": "Type de FOSA",          "en": "Health Facility Type"},
-    "pepfar":        {"fr": "Soutien PEPFAR",        "en": "PEPFAR Support"},
-    "milieu":        {"fr": "Milieu de résidence",   "en": "Residence Setting"},
-    "sexe":          {"fr": "Sexe",                  "en": "Sex"},
-    "tranche_age":   {"fr": "Tranche d'âge",         "en": "Age Group"},
-    "niveau_etude":  {"fr": "Niveau d'étude",        "en": "Education Level"},
-    "statut_mat":    {"fr": "Statut matrimonial",    "en": "Marital Status"},
-    "activite":      {"fr": "Activité rémunérée",    "en": "Paid Activity"},
-    "observance":    {"fr": "Observance (4 derniers jours)",
-                      "en": "Adherence (last 4 days)"},
     "dsd":           {"fr": "Mode de dispensation (DSD)",
                       "en": "Dispensation Mode (DSD)"},
-    "protocole":     {"fr": "Protocole ARV",         "en": "ART Protocol"},
+    "delai":         {"fr": "Délai d'attente à la FOSA",
+                      "en": "Waiting Time at Facility"},
+    "observance":    {"fr": "Observance (4 derniers jours)",
+                      "en": "Adherence (last 4 days)"},
+    "retesting":     {"fr": "Nouveau dépistage VIH (retesting)",
+                      "en": "HIV Retesting"},
+    "religion":      {"fr": "Religion",              "en": "Religion"},
+    "niveau_etude":  {"fr": "Niveau d'étude",        "en": "Education Level"},
+    "revenu":        {"fr": "Revenu mensuel",        "en": "Monthly Income"},
+    "depenses":      {"fr": "Dépenses mensuelles liées au traitement",
+                      "en": "Monthly Treatment-related Expenses"},
 
     "oui":           {"fr": "Oui",                   "en": "Yes"},
     "non":           {"fr": "Non",                   "en": "No"},
-    "urbain":        {"fr": "Urbain",                "en": "Urban"},
-    "rural":         {"fr": "Rural",                 "en": "Rural"},
-    "masculin":      {"fr": "Masculin",              "en": "Male"},
-    "feminin":       {"fr": "Féminin",               "en": "Female"},
 
     "btn_calc":      {"fr": "🔍  Calculer le Score de Risque",
                       "en": "🔍  Calculate Risk Score"},
@@ -163,8 +165,8 @@ T = {
     },
 
     "imp_sub":       {
-        "fr": "Importances globales du modèle XGBoost — plus la barre est longue, plus la variable pèse dans la prédiction.",
-        "en": "Global XGBoost feature importances — longer bar = more weight in the prediction.",
+        "fr": "Importances globales du modèle {} — plus la barre est longue, plus la variable pèse dans la prédiction.",
+        "en": "Global {} feature importances — longer bar = more weight in the prediction.",
     },
     "imp_title":     {"fr": "🔬 Top {} facteurs les plus contributifs",
                       "en": "🔬 Top {} most contributing factors"},
@@ -182,19 +184,41 @@ T = {
     # ── Pied de page ─────────────────────────────────────────────────────────
     "footer": {
         "fr": ("🎗️ <strong>TARV-Score</strong> — Mémoire ISE3 ISSEA-CEMAC 2025-2026 &nbsp;|&nbsp; "
-               "CNLS / GTC Cameroun &nbsp;·&nbsp; XGBoost &nbsp;·&nbsp; Rappel : 83,8 % &nbsp;·&nbsp; "
-               "AUC-ROC : 0,704 &nbsp;·&nbsp; N entraînement : 3 172 &nbsp;·&nbsp; N test : 544<br>"
+               "CNLS / GTC Cameroun &nbsp;·&nbsp; {algo} &nbsp;·&nbsp; Rappel : {rappel} &nbsp;·&nbsp; "
+               "AUC-ROC : {auc} &nbsp;·&nbsp; N entraînement : {n_train} &nbsp;·&nbsp; N test : {n_test}<br>"
                "<em>⚠️ Outil d'aide à la décision — Ne remplace pas le jugement clinique du prestataire de santé.</em>"),
         "en": ("🎗️ <strong>TARV-Score</strong> — ISE3 Thesis ISSEA-CEMAC 2025-2026 &nbsp;|&nbsp; "
-               "NACC / GTC Cameroon &nbsp;·&nbsp; XGBoost &nbsp;·&nbsp; Recall: 83.8% &nbsp;·&nbsp; "
-               "AUC-ROC: 0.704 &nbsp;·&nbsp; Train N: 3,172 &nbsp;·&nbsp; Test N: 544<br>"
+               "NACC / GTC Cameroon &nbsp;·&nbsp; {algo} &nbsp;·&nbsp; Recall: {rappel} &nbsp;·&nbsp; "
+               "AUC-ROC: {auc} &nbsp;·&nbsp; Train N: {n_train} &nbsp;·&nbsp; Test N: {n_test}<br>"
                "<em>⚠️ Decision-support tool — Does not replace the clinical judgment of the healthcare provider.</em>"),
     },
 
     # ── Options variables ─────────────────────────────────────────────────────
-    "tranche_age_opts": {
-        "fr": ["25 à 49 Ans","18 à 20 Ans","21 à 24 Ans","50 ans et plus"],
-        "en": ["25 to 49 years","18 to 20 years","21 to 24 years","50 years and above"],
+    "region_opts": {
+        "fr": ["Centre","Adamaoua","Est","Extrême-Nord","Littoral",
+               "Nord","Nord-Ouest","Ouest","Sud","Sud-Ouest"],
+        "en": ["Centre","Adamawa","East","Far North","Littoral",
+               "North","North-West","West","South","South-West"],
+    },
+    "type_fosa_opts": {
+        "fr": ["Public","Privé confessionnel","Privé laïc"],
+        "en": ["Public","Faith-based Private","Secular Private"],
+    },
+    "dsd_opts": {
+        "fr": ["Standard","DSD avec décalage RDV","DSD sans décalage"],
+        "en": ["Standard","DSD with appointment delay","DSD without delay"],
+    },
+    "delai_opts": {
+        "fr": ["≤15 min","16-30 min","31-60 min",">60 min","Non renseigné"],
+        "en": ["≤15 min","16-30 min","31-60 min",">60 min","Not specified"],
+    },
+    "observance_opts": {
+        "fr": ["Bonne","Modérée","Médiocre"],
+        "en": ["Good","Moderate","Poor"],
+    },
+    "religion_opts": {
+        "fr": ["Catholique","Protestant","Musulman","Autre"],
+        "en": ["Catholic","Protestant","Muslim","Other"],
     },
     "niveau_etude_opts": {
         "fr": ["Primaire","Jamais fréquenté","Secondaire Premier Cycle",
@@ -202,35 +226,15 @@ T = {
         "en": ["Primary","Never attended school","Lower Secondary",
                "Upper Secondary","Higher Education"],
     },
-    "statut_mat_opts": {
-        "fr": ["Marié(e) en monogamie","Célibataire","En union libre/concubinage",
-               "Marié(e) en polygamie","En séparation de corps / Divorcée","Veuf (ve)"],
-        "en": ["Married (monogamous)","Single","Cohabiting/Common-law",
-               "Married (polygamous)","Separated / Divorced","Widowed"],
+    "revenu_opts": {
+        "fr": ["Moins de 10 000","[10 000 - 50 000[","[50 000 - 100 000[",
+               "[100 000 - 200 000[","200 000 et plus"],
+        "en": ["Under 10,000 FCFA","10,000-50,000 FCFA","50,000-100,000 FCFA",
+               "100,000-200,000 FCFA","200,000 FCFA and above"],
     },
-    "type_fosa_opts": {
-        "fr": ["Public","Privé confessionnel","Privé laïc"],
-        "en": ["Public","Faith-based Private","Secular Private"],
-    },
-    "observance_opts": {
-        "fr": ["Bonne","Modérée","Médiocre"],
-        "en": ["Good","Moderate","Poor"],
-    },
-    "dsd_opts": {
-        "fr": ["Standard (Suivi classique)","Dispensation communautaire / VAD"],
-        "en": ["Standard (Regular follow-up)","Community dispensation / Home visit"],
-    },
-    "protocole_opts": {
-        "fr": ["TDF+3TC+DTG (TLD)","TDF+3TC+EFV (TELE/TLE)",
-               "Protocoles avec IP (ATV/r)","Autre / Non spécifié"],
-        "en": ["TDF+3TC+DTG (TLD)","TDF+3TC+EFV (TELE/TLE)",
-               "PI-based regimens (ATV/r)","Other / Not specified"],
-    },
-    "region_opts": {
-        "fr": ["Centre","Adamaoua","Est","Extrême-Nord","Littoral",
-               "Nord","Nord-Ouest","Ouest","Sud","Sud-Ouest"],
-        "en": ["Centre","Adamawa","East","Far North","Littoral",
-               "North","North-West","West","South","South-West"],
+    "depenses_opts": {
+        "fr": ["Moins de 5 000","[5 000 - 10 000[","[10 000 - 25 000[","25 000 et plus"],
+        "en": ["Under 5,000 FCFA","5,000-10,000 FCFA","10,000-25,000 FCFA","25,000 FCFA and above"],
     },
 }
 
@@ -303,17 +307,15 @@ MODELES = BASE / "modeles"
 
 
 @st.cache_resource
-def load_base_resources():
-    scaler   = joblib.load(MODELES / "scaler_prepro.pkl")
-    colonnes = joblib.load(MODELES / "colonnes_train.pkl")
-    with open(MODELES / "meta_all.json", encoding="utf-8") as f:
-        meta_all = json.load(f)
-    return scaler, colonnes, meta_all
-
-
-@st.cache_resource
-def load_model(nom: str, fichier: str):
-    return joblib.load(MODELES / fichier)
+def load_resources():
+    model      = joblib.load(MODELES / "modele_final.pkl")
+    scaler     = joblib.load(MODELES / "scaler.pkl")
+    clean_cols = joblib.load(MODELES / "colonnes_modele.pkl")
+    references = joblib.load(MODELES / "references.pkl")
+    variables  = joblib.load(MODELES / "variables_modele.pkl")
+    with open(MODELES / "meta.json", encoding="utf-8") as f:
+        meta = json.load(f)
+    return model, scaler, clean_cols, references, variables, meta
 
 
 def img_b64(path: Path) -> str:
@@ -343,103 +345,50 @@ def t(key: str) -> str:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# CHARGEMENT RESSOURCES DE BASE
+# CHARGEMENT DES RESSOURCES DU MODELE
 # ─────────────────────────────────────────────────────────────────────────────
 try:
-    scaler, colonnes_train, meta_all = load_base_resources()
+    model, scaler, clean_cols, references, VARS_FIN, meta = load_resources()
+    SCALER_COLS = list(scaler.feature_names_in_)
 except Exception as exc:
-    st.error(f"❌ {'Impossible de charger les ressources' if L=='fr' else 'Cannot load resources'}: {exc}")
+    st.error(f"❌ {'Impossible de charger le modèle' if L=='fr' else 'Cannot load the model'}: {exc}")
     st.stop()
 
-# ─────────────────────────────────────────────────────────────────────────────
-# SÉLECTEUR DE MODÈLE (sidebar)
-# ─────────────────────────────────────────────────────────────────────────────
-MODEL_NAMES = {
-    "fr": {
-        "XGBoost":      "🏆 XGBoost (Rappel max)",
-        "Logistique":   "⚖️ Régression Logistique (Équilibré)",
-        "SVM":          "🎯 SVM (Précision max)",
-        "RandomForest": "🌲 Random Forest (Robuste)",
-    },
-    "en": {
-        "XGBoost":      "🏆 XGBoost (Max Recall)",
-        "Logistique":   "⚖️ Logistic Regression (Balanced)",
-        "SVM":          "🎯 SVM (Max Precision)",
-        "RandomForest": "🌲 Random Forest (Robust)",
-    },
-}
-
-with st.sidebar:
-    st.divider()
-    mod_title = "🤖 Choix du modèle de scoring" if L == "fr" else "🤖 Scoring Model Selection"
-    st.markdown(f"### {mod_title}")
-
-    model_key = st.radio(
-        label="",
-        options=list(MODEL_NAMES["fr"].keys()),
-        format_func=lambda k: MODEL_NAMES[L][k],
-        key="model_choice",
-        label_visibility="collapsed",
-    )
-    meta_m = meta_all[model_key]
-
-    # Affichage métriques du modèle sélectionné
-    desc_key = "description_fr" if L == "fr" else "description_en"
-    usage_key = "usage_fr" if L == "fr" else "usage_en"
-    st.markdown(
-        f'<div style="background:rgba(255,255,255,0.10);border-radius:8px;padding:8px 12px;'
-        f'margin-top:6px;font-size:0.8em;color:#ddeeff;line-height:1.5;">'
-        f'<em>{meta_m[desc_key]}</em><br>'
-        f'<strong style="color:#a8e6cf;">→ {meta_m[usage_key]}</strong>'
-        f'</div>',
-        unsafe_allow_html=True,
-    )
-
-    st.markdown("<br>", unsafe_allow_html=True)
-    seuil_title = "🎚️ Seuil de décision" if L == "fr" else "🎚️ Decision Threshold"
-    st.markdown(f"**{seuil_title}**")
-    SEUIL = st.slider(
-        label="",
-        min_value=0.30,
-        max_value=0.75,
-        value=float(meta_m["seuil_defaut"]),
-        step=0.05,
-        format="%.2f",
-        key="seuil_slider",
-        label_visibility="collapsed",
-    )
-    seuil_info = (f"Rappel ≈ {meta_m['rappel']:.0%} | Précision ≈ {meta_m['precision']:.0%}"
-                  if L == "fr" else
-                  f"Recall ≈ {meta_m['rappel']:.0%} | Precision ≈ {meta_m['precision']:.0%}")
-    st.caption(f"Métriques à seuil 0,50 : {seuil_info}" if L == "fr" else
-               f"Metrics at threshold 0.50: {seuil_info}")
-
-# Chargement du modèle sélectionné
-try:
-    model = load_model(model_key, meta_m["fichier"])
-except Exception as exc:
-    st.error(f"❌ Modèle {model_key} non disponible : {exc}")
-    st.stop()
+MODEL_NAME = meta["nom_modele"]
 
 # ─────────────────────────────────────────────────────────────────────────────
-# RESTE DE LA SIDEBAR
+# SEUIL DE DECISION (sidebar)
 # ─────────────────────────────────────────────────────────────────────────────
 with st.sidebar:
     st.markdown(f"## {t('sidebar_title')}")
     st.caption(t("sidebar_sub"))
     st.divider()
 
-    st.markdown(f"### {t('perf_title')} — {model_key}")
+    st.markdown(f"### {t('perf_title')} — {MODEL_NAME}")
     c1, c2 = st.columns(2)
-    rappel_fmt    = f"{meta_m['rappel']:.1%}".replace(".", ",") if L == "fr" else f"{meta_m['rappel']:.1%}"
-    precision_fmt = f"{meta_m['precision']:.1%}".replace(".", ",") if L == "fr" else f"{meta_m['precision']:.1%}"
-    auc_fmt       = f"{meta_m['auc_roc']:.3f}".replace(".", ",") if L == "fr" else f"{meta_m['auc_roc']:.3f}"
+    rappel_fmt    = f"{meta['rappel']:.1%}".replace(".", ",") if L == "fr" else f"{meta['rappel']:.1%}"
+    precision_fmt = f"{meta['precision']:.1%}".replace(".", ",") if L == "fr" else f"{meta['precision']:.1%}"
+    auc_fmt       = f"{meta['auc_roc']:.3f}".replace(".", ",") if L == "fr" else f"{meta['auc_roc']:.3f}"
     c1.metric(t("recall_lbl"), rappel_fmt)
     c2.metric("AUC-ROC",       auc_fmt)
-    c1.metric(t("train_lbl"),  "3 172")
-    c2.metric(t("test_lbl"),   "544")
+    c1.metric(t("train_lbl"),  f"{meta['n_train']:,}".replace(",", " "))
+    c2.metric(t("test_lbl"),   f"{meta['n_test']:,}".replace(",", " "))
     prec_lbl = "Précision" if L == "fr" else "Precision"
-    st.caption(f"{t('algo_lbl')} : {model_key}  |  {t('seuil_lbl')} : {SEUIL:.0%}  |  {prec_lbl} : {precision_fmt}  |  {t('smote_lbl')}")
+
+    st.markdown("<br>", unsafe_allow_html=True)
+    seuil_title = "🎚️ Seuil de décision" if L == "fr" else "🎚️ Decision Threshold"
+    st.markdown(f"**{seuil_title}**")
+    SEUIL = st.slider(
+        label="",
+        min_value=0.20,
+        max_value=0.80,
+        value=float(meta["seuil_defaut"]),
+        step=0.01,
+        format="%.2f",
+        key="seuil_slider",
+        label_visibility="collapsed",
+    )
+    st.caption(f"{t('algo_lbl')} : {MODEL_NAME}  |  {t('seuil_lbl')} : {SEUIL:.0%}  |  {prec_lbl} : {precision_fmt}  |  {t('cw_lbl')}")
 
     st.divider()
     st.markdown(f"### {t('grid_title')}")
@@ -494,10 +443,9 @@ st.markdown(f"""
         <div style="font-size:0.88em; font-weight:300; opacity:0.88; margin-top:9px;">{t("main_sub")}</div>
         <div style="display:flex; gap:8px; justify-content:center; flex-wrap:wrap; margin-top:13px;">
             <span style="background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);border-radius:20px;padding:3px 14px;font-size:0.78em;font-weight:600;">{t("badge_cnls")}</span>
-            <span style="background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);border-radius:20px;padding:3px 14px;font-size:0.78em;font-weight:600;">{t("badge_xgb")}</span>
             <span style="background:rgba(39,174,96,0.35);border:1px solid rgba(39,174,96,0.6);border-radius:20px;padding:3px 14px;font-size:0.78em;font-weight:600;">{t("badge_recall")} : {rappel_fmt}</span>
             <span style="background:rgba(52,152,219,0.35);border:1px solid rgba(52,152,219,0.6);border-radius:20px;padding:3px 14px;font-size:0.78em;font-weight:600;">{t("badge_auc")} : {auc_fmt}</span>
-            <span style="background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);border-radius:20px;padding:3px 14px;font-size:0.78em;font-weight:600;">⚙️ {model_key}</span>
+            <span style="background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);border-radius:20px;padding:3px 14px;font-size:0.78em;font-weight:600;">⚙️ {MODEL_NAME}</span>
         </div>
     </div>
     <img src="data:image/png;base64,{issea_b64}" height="130"
@@ -520,39 +468,25 @@ OBSERVANCE_INTERNAL = {
     "Good": "Bonne",   "Moderate": "Modérée",  "Poor": "Mediocre",
 }
 
-REGION_EN2FR  = dict(zip(T["region_opts"]["en"],       T["region_opts"]["fr"]))
-AGE_EN2FR     = dict(zip(T["tranche_age_opts"]["en"],  T["tranche_age_opts"]["fr"]))
-ETUDE_EN2FR   = dict(zip(T["niveau_etude_opts"]["en"], T["niveau_etude_opts"]["fr"]))
-STATUT_EN2FR  = dict(zip(T["statut_mat_opts"]["en"],   T["statut_mat_opts"]["fr"]))
-DSD_EN2FR     = dict(zip(T["dsd_opts"]["en"],          T["dsd_opts"]["fr"]))
-PROTO_EN2FR   = dict(zip(T["protocole_opts"]["en"],    T["protocole_opts"]["fr"]))
+REGION_EN2FR   = dict(zip(T["region_opts"]["en"],       T["region_opts"]["fr"]))
+ETUDE_EN2FR    = dict(zip(T["niveau_etude_opts"]["en"], T["niveau_etude_opts"]["fr"]))
+DSD_EN2FR      = dict(zip(T["dsd_opts"]["en"],          T["dsd_opts"]["fr"]))
+DELAI_EN2FR    = dict(zip(T["delai_opts"]["en"],        T["delai_opts"]["fr"]))
+RELIGION_EN2FR = dict(zip(T["religion_opts"]["en"],     T["religion_opts"]["fr"]))
+REVENU_EN2FR   = dict(zip(T["revenu_opts"]["en"],       T["revenu_opts"]["fr"]))
+DEPENSES_EN2FR = dict(zip(T["depenses_opts"]["en"],     T["depenses_opts"]["fr"]))
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# PIPELINE (identique au notebook)
+# PIPELINE DE SCORING (identique au script d'entraînement train_model.py)
 # ─────────────────────────────────────────────────────────────────────────────
-def get_dummies_fixed(df: pd.DataFrame) -> pd.DataFrame:
-    cats = ["Tranche_Age","Sexe","Niveau_Etude","Statut_Matrimonial",
-            "Region","Type_FOSA","Soutien_PEPFAR","Milieu_Residence",
-            "Observance_4j","Activite_Remuneree","DSD_Recode","Protocole_Recode"]
-    df_dum = pd.get_dummies(df, columns=cats, dtype=int)
-    refs   = ["Tranche_Age_25 à 49 Ans","Sexe_Féminin","Niveau_Etude_Primaire",
-              "Statut_Matrimonial_Marié(e) en monogamie","Region_Centre",
-              "Type_FOSA_Public","Soutien_PEPFAR_Non","Milieu_Residence_Urbain",
-              "Observance_4j_Bonne","Activite_Remuneree_Non",
-              "DSD_Recode_Standard (Suivi classique)","Protocole_Recode_TDF+3TC+DTG (TLD)"]
-    return df_dum.drop(columns=[c for c in refs if c in df_dum.columns])
-
-
-def predict_with(m, raw_fr: dict) -> float:
-    df     = pd.DataFrame([raw_fr])
-    dum    = get_dummies_fixed(df).reindex(columns=colonnes_train, fill_value=0)
-    scaled = pd.DataFrame(scaler.transform(dum), columns=colonnes_train)
-    return float(m.predict_proba(scaled)[0][1])
-
-
 def predict(raw_fr: dict) -> float:
-    return predict_with(model, raw_fr)
+    """Dummifie, réindexe sur les colonnes du scaler, standardise puis prédit."""
+    df = pd.DataFrame([raw_fr])
+    df_dum = pd.get_dummies(df, dtype=int)
+    df_dum = df_dum.reindex(columns=SCALER_COLS, fill_value=0)
+    scaled = pd.DataFrame(scaler.transform(df_dum), columns=clean_cols)
+    return float(model.predict_proba(scaled)[0][1])
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -628,35 +562,25 @@ def svg_gauge(prob: float, color: str) -> str:
 # ─────────────────────────────────────────────────────────────────────────────
 # GRAPHIQUE IMPORTANCE
 # ─────────────────────────────────────────────────────────────────────────────
-LABELS_MAP = {
-    "Observance_4j_Mediocre":                       {"fr":"Observance médiocre (4j)",        "en":"Poor adherence (4 days)"},
-    "Observance_4j_Modérée":                        {"fr":"Observance modérée (4j)",          "en":"Moderate adherence (4 days)"},
-    "Type_FOSA_Privé laic":                         {"fr":"FOSA — Privé laïc",                "en":"Facility — Secular Private"},
-    "Type_FOSA_Privé confessionnel":                {"fr":"FOSA — Privé confessionnel",       "en":"Facility — Faith-based"},
-    "Soutien_PEPFAR_Oui":                           {"fr":"Soutien PEPFAR",                   "en":"PEPFAR support"},
-    "Milieu_Residence_Rural":                       {"fr":"Milieu rural",                     "en":"Rural setting"},
-    "Sexe_Masculin":                                {"fr":"Sexe masculin",                    "en":"Male sex"},
-    "Activite_Remuneree_Oui":                       {"fr":"Activité rémunérée",               "en":"Paid activity"},
-    "DSD_Recode_Dispensation communautaire / VAD":  {"fr":"Dispensation communautaire",       "en":"Community dispensation"},
-    "Protocole_Recode_TDF+3TC+EFV (TELE/TLE)":     {"fr":"Protocole TELE/TLE",               "en":"TELE/TLE protocol"},
-    "Protocole_Recode_Protocoles avec IP (ATV/r)":  {"fr":"Protocole IP (ATV/r)",             "en":"PI-based (ATV/r)"},
-    "Protocole_Recode_Autre / Non spécifié":        {"fr":"Protocole autre",                  "en":"Other protocol"},
-    "Statut_Matrimonial_Célibataire":               {"fr":"Célibataire",                      "en":"Single"},
-    "Statut_Matrimonial_Veuf (ve)":                 {"fr":"Veuf(ve)",                         "en":"Widowed"},
-    "Statut_Matrimonial_En union libre/concubinage":{"fr":"Union libre",                      "en":"Cohabiting"},
-    "Statut_Matrimonial_Marié(e) en polygamie":     {"fr":"Polygamie",                        "en":"Polygamous"},
-    "Niveau_Etude_Supérieur":                       {"fr":"Niveau supérieur",                 "en":"Higher education"},
-    "Niveau_Etude_Jamais fréquenté":                {"fr":"Jamais scolarisé",                 "en":"Never schooled"},
-    "Niveau_Etude_Secondaire Premier Cycle":         {"fr":"Secondaire 1er cycle",             "en":"Lower secondary"},
-    "Niveau_Etude_Secondaire Second Cycle":          {"fr":"Secondaire 2ᵉ cycle",              "en":"Upper secondary"},
-    "Tranche_Age_18 à 20 Ans":                      {"fr":"Âge 18–20 ans",                    "en":"Age 18–20 yrs"},
-    "Tranche_Age_21 à 24 Ans":                      {"fr":"Âge 21–24 ans",                    "en":"Age 21–24 yrs"},
-    "Tranche_Age_50 ans et plus":                   {"fr":"Âge ≥ 50 ans",                     "en":"Age ≥ 50 yrs"},
+VARIABLE_LABELS = {
+    "Observance_4j":        {"fr": "Observance (4 jours)",         "en": "Adherence (4 days)"},
+    "Region":               {"fr": "Région",                       "en": "Region"},
+    "Religion":              {"fr": "Religion",                    "en": "Religion"},
+    "Depenses_Mensuelles":  {"fr": "Dépenses mensuelles",          "en": "Monthly expenses"},
+    "DSD_Recode":           {"fr": "Mode de dispensation",         "en": "Dispensation mode"},
+    "Revenu":               {"fr": "Revenu mensuel",               "en": "Monthly income"},
+    "Delai_Attente_Cat":    {"fr": "Délai d'attente",              "en": "Waiting time"},
+    "Niveau_Etude":         {"fr": "Niveau d'étude",                "en": "Education level"},
+    "Retesting":            {"fr": "Retesting VIH",                "en": "HIV retesting"},
+    "Type_FOSA":            {"fr": "Type de FOSA",                 "en": "Facility type"},
+}
+MODALITY_EN = {
+    "Oui": "Yes", "Non renseigné": "Not specified", "Mediocre": "Poor",
+    "Modérée": "Moderate", "Standard": "Standard", "Public": "Public",
 }
 
 
 def get_feature_importances(mdl):
-    """Retourne les importances selon le type de modèle."""
     if hasattr(mdl, "feature_importances_"):
         return mdl.feature_importances_
     elif hasattr(mdl, "coef_"):
@@ -668,18 +592,22 @@ def get_feature_importances(mdl):
     return None
 
 
+def get_label(var: str) -> str:
+    for prefix, group in VARIABLE_LABELS.items():
+        if var.startswith(prefix + "_"):
+            modality = var[len(prefix) + 1:].replace("_", " ")
+            if L == "en":
+                modality = MODALITY_EN.get(modality, modality)
+            return f"{group[L]} : {modality}"
+    return var.replace("_", " ")
+
+
 def draw_importance(top_n: int = 10) -> plt.Figure:
     imp  = get_feature_importances(model)
-    feat = pd.DataFrame({"Variable": colonnes_train, "Importance": imp})
+    feat = pd.DataFrame({"Variable": clean_cols, "Importance": imp})
     feat = feat.sort_values("Importance", ascending=False).head(top_n).sort_values("Importance")
-
-    def get_label(var):
-        entry = LABELS_MAP.get(var)
-        if entry:
-            return entry[L]
-        return var.replace("Region_", ("Région : " if L=="fr" else "Region: ")).replace("_", " ")
-
     feat["Label"] = feat["Variable"].apply(get_label)
+
     n      = len(feat)
     COLORS = ["#2980b9","#2980b9","#27ae60","#27ae60","#f39c12",
                "#f39c12","#e67e22","#e74c3c","#c0392b","#922b21"]
@@ -737,7 +665,6 @@ def generate_pdf(patient_vals: list, prob: float, niveau: str,
     pdf.set_fill_color(11, 45, 82)
     pdf.rect(0, 0, 210, 44, 'F')
 
-    # Logos
     try:
         pdf.image(str(cnls_path),  x=8,  y=4,  h=36)
         pdf.image(str(issea_path), x=172, y=4, h=36)
@@ -758,7 +685,7 @@ def generate_pdf(patient_vals: list, prob: float, niveau: str,
     pdf.cell(110, 5, safe('CNLS / GTC Cameroun | ISSEA-CEMAC 2025-2026'), align='C', ln=True)
     pdf.set_xy(50, 33)
     pdf.set_font('Helvetica', 'I', 7)
-    pdf.cell(110, 5, safe('XGBoost | Rappel : 83,8 % | AUC-ROC : 0,704 | Seuil : 50 %'), align='C')
+    pdf.cell(110, 5, safe(f"{MODEL_NAME} | Rappel : {meta['rappel']:.1%} | AUC-ROC : {meta['auc_roc']:.3f} | Seuil : {SEUIL:.0%}"), align='C')
 
     # ── Date d'évaluation ────────────────────────────────────────────────────
     pdf.set_text_color(100, 100, 100)
@@ -787,9 +714,9 @@ def generate_pdf(patient_vals: list, prob: float, niveau: str,
     pdf.set_text_color(120, 120, 120)
     pdf.set_font('Helvetica', '', 8)
     pdf.set_xy(10, 80)
-    seuil_txt = ('Seuil de classification : 50 % — Modele XGBoost'
+    seuil_txt = (f'Seuil de classification : {SEUIL:.0%} — Modele {MODEL_NAME}'
                  if lang == 'fr' else
-                 'Classification threshold: 50% — XGBoost model')
+                 f'Classification threshold: {SEUIL:.0%} — {MODEL_NAME} model')
     pdf.cell(190, 5, safe(seuil_txt), align='C')
 
     # ── Profil du patient ─────────────────────────────────────────────────────
@@ -798,7 +725,6 @@ def generate_pdf(patient_vals: list, prob: float, niveau: str,
     pdf.set_xy(10, 96)
     pdf.cell(0, 7, safe('Profil du Patient' if lang == 'fr' else 'Patient Profile'), ln=True)
 
-    # En-tête tableau
     pdf.set_fill_color(11, 45, 82)
     pdf.set_text_color(255, 255, 255)
     pdf.set_font('Helvetica', 'B', 9)
@@ -806,14 +732,13 @@ def generate_pdf(patient_vals: list, prob: float, niveau: str,
     pdf.cell(85, 7, safe('Variable'), border=1, fill=True, align='C')
     pdf.cell(105, 7, safe('Valeur' if lang == 'fr' else 'Value'), border=1, fill=True, align='C', ln=True)
 
-    # Lignes tableau
     var_labels = {
-        'fr': ['Region', "Type de FOSA", 'Soutien PEPFAR', 'Milieu de residence',
-               'Sexe', "Tranche d'age", "Niveau d'etude", 'Statut matrimonial',
-               'Activite remuneree', 'Observance (4 jours)', 'Mode DSD', 'Protocole ARV'],
-        'en': ['Region', 'Health Facility Type', 'PEPFAR Support', 'Residence Setting',
-               'Sex', 'Age Group', 'Education Level', 'Marital Status',
-               'Paid Activity', 'Adherence (4 days)', 'DSD Mode', 'ART Protocol'],
+        'fr': ['Region', 'Type de FOSA', 'Mode DSD', "Delai d'attente",
+               'Observance (4 jours)', 'Retesting VIH', 'Religion',
+               "Niveau d'etude", 'Revenu mensuel', 'Depenses mensuelles'],
+        'en': ['Region', 'Health Facility Type', 'DSD Mode', 'Waiting Time',
+               'Adherence (4 days)', 'HIV Retesting', 'Religion',
+               'Education Level', 'Monthly Income', 'Monthly Expenses'],
     }
     pdf.set_line_width(0.3)
     for i, (var, val) in enumerate(zip(var_labels[lang], patient_vals)):
@@ -852,27 +777,23 @@ def generate_pdf(patient_vals: list, prob: float, niveau: str,
 # ─────────────────────────────────────────────────────────────────────────────
 # FONCTIONS IMPORT BATCH
 # ─────────────────────────────────────────────────────────────────────────────
-
-# Colonnes attendues dans le fichier (valeurs internes FR)
 COLS_REQUIS = [
-    "Region", "Type_FOSA", "Soutien_PEPFAR", "Milieu_Residence",
-    "Sexe", "Tranche_Age", "Niveau_Etude", "Statut_Matrimonial",
-    "Activite_Remuneree", "Observance_4j", "DSD_Recode", "Protocole_Recode",
+    "Region", "Type_FOSA", "DSD_Recode", "Delai_Attente_Cat",
+    "Observance_4j", "Retesting", "Religion", "Niveau_Etude",
+    "Revenu", "Depenses_Mensuelles",
 ]
 
 VALEURS_VALIDES = {
-    "Region":             ["Centre","Adamaoua","Est","Extrême-Nord","Littoral","Nord","Nord-Ouest","Ouest","Sud","Sud-Ouest"],
-    "Type_FOSA":          ["Public","Privé confessionnel","Privé laïc"],
-    "Soutien_PEPFAR":     ["Oui","Non"],
-    "Milieu_Residence":   ["Urbain","Rural"],
-    "Sexe":               ["Féminin","Masculin"],
-    "Tranche_Age":        ["25 à 49 Ans","18 à 20 Ans","21 à 24 Ans","50 ans et plus"],
-    "Niveau_Etude":       ["Primaire","Jamais fréquenté","Secondaire Premier Cycle","Secondaire Second Cycle","Supérieur"],
-    "Statut_Matrimonial": ["Marié(e) en monogamie","Célibataire","En union libre/concubinage","Marié(e) en polygamie","En séparation de corps / Divorcée","Veuf (ve)"],
-    "Activite_Remuneree": ["Oui","Non"],
-    "Observance_4j":      ["Bonne","Modérée","Médiocre"],
-    "DSD_Recode":         ["Standard (Suivi classique)","Dispensation communautaire / VAD"],
-    "Protocole_Recode":   ["TDF+3TC+DTG (TLD)","TDF+3TC+EFV (TELE/TLE)","Protocoles avec IP (ATV/r)","Autre / Non spécifié"],
+    "Region":              T["region_opts"]["fr"],
+    "Type_FOSA":           T["type_fosa_opts"]["fr"],
+    "DSD_Recode":          T["dsd_opts"]["fr"],
+    "Delai_Attente_Cat":   T["delai_opts"]["fr"],
+    "Observance_4j":       T["observance_opts"]["fr"],
+    "Retesting":           ["Oui", "Non"],
+    "Religion":            T["religion_opts"]["fr"],
+    "Niveau_Etude":        T["niveau_etude_opts"]["fr"],
+    "Revenu":              T["revenu_opts"]["fr"],
+    "Depenses_Mensuelles": T["depenses_opts"]["fr"],
 }
 
 
@@ -885,7 +806,6 @@ def generate_template() -> bytes:
 
     wb = openpyxl.Workbook()
 
-    # ── Feuille 1 : données ──────────────────────────────────────────────────
     ws = wb.active
     ws.title = "Données patients"
 
@@ -894,7 +814,6 @@ def generate_template() -> bytes:
     border_side  = Side(style="thin", color="CCCCCC")
     cell_border  = Border(left=border_side, right=border_side, top=border_side, bottom=border_side)
 
-    # Colonne ID patient + 12 variables
     headers = ["ID_Patient"] + COLS_REQUIS
     for c, h in enumerate(headers, 1):
         cell = ws.cell(row=1, column=c, value=h)
@@ -904,10 +823,9 @@ def generate_template() -> bytes:
         cell.border = cell_border
         ws.column_dimensions[get_column_letter(c)].width = 22
 
-    # Exemple de ligne
-    exemple = ["P001", "Centre", "Public", "Oui", "Urbain", "Féminin",
-               "25 à 49 Ans", "Primaire", "Marié(e) en monogamie", "Non",
-               "Bonne", "Standard (Suivi classique)", "TDF+3TC+DTG (TLD)"]
+    exemple = ["P001", "Centre", "Public", "Standard", "≤15 min",
+               "Bonne", "Non", "Catholique", "Jamais fréquenté",
+               "Moins de 10 000", "Moins de 5 000"]
     for c, val in enumerate(exemple, 1):
         cell = ws.cell(row=2, column=c, value=val)
         cell.fill = PatternFill("solid", fgColor="EEF5FF")
@@ -916,7 +834,6 @@ def generate_template() -> bytes:
 
     ws.row_dimensions[1].height = 32
 
-    # ── Feuille 2 : valeurs valides ──────────────────────────────────────────
     ws2 = wb.create_sheet("Valeurs valides")
     ws2.cell(1, 1, "Variable").font = Font(bold=True, color="FFFFFF", size=10)
     ws2.cell(1, 1).fill = header_fill
@@ -958,23 +875,21 @@ def score_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     for _, row in df.iterrows():
         try:
             raw = {
-                "Tranche_Age":        str(row.get("Tranche_Age", "")).strip(),
-                "Sexe":               str(row.get("Sexe", "")).strip(),
-                "Niveau_Etude":       str(row.get("Niveau_Etude", "")).strip(),
-                "Statut_Matrimonial": str(row.get("Statut_Matrimonial", "")).strip(),
-                "Region":             str(row.get("Region", "")).strip(),
-                "Type_FOSA":          normalize_fosa(row.get("Type_FOSA", "")),
-                "Soutien_PEPFAR":     str(row.get("Soutien_PEPFAR", "")).strip(),
-                "Milieu_Residence":   str(row.get("Milieu_Residence", "")).strip(),
-                "Observance_4j":      normalize_observance(row.get("Observance_4j", "")),
-                "Activite_Remuneree": str(row.get("Activite_Remuneree", "")).strip(),
-                "DSD_Recode":         str(row.get("DSD_Recode", "")).strip(),
-                "Protocole_Recode":   str(row.get("Protocole_Recode", "")).strip(),
+                "Region":              str(row.get("Region", "")).strip(),
+                "Type_FOSA":           normalize_fosa(row.get("Type_FOSA", "")),
+                "DSD_Recode":          str(row.get("DSD_Recode", "")).strip(),
+                "Delai_Attente_Cat":   str(row.get("Delai_Attente_Cat", "")).strip(),
+                "Observance_4j":       normalize_observance(row.get("Observance_4j", "")),
+                "Retesting":           str(row.get("Retesting", "")).strip(),
+                "Religion":            str(row.get("Religion", "")).strip(),
+                "Niveau_Etude":        str(row.get("Niveau_Etude", "")).strip(),
+                "Revenu":              str(row.get("Revenu", "")).strip(),
+                "Depenses_Mensuelles": str(row.get("Depenses_Mensuelles", "")).strip(),
             }
             prob = predict(raw)
             if prob < 0.30:
                 niv = "Faible / Low"
-            elif prob < 0.50:
+            elif prob < SEUIL:
                 niv = "Modéré / Moderate"
             else:
                 niv = "Élevé / High"
@@ -987,11 +902,10 @@ def score_dataframe(df: pd.DataFrame) -> pd.DataFrame:
 
 def generate_batch_pdf(df_res: pd.DataFrame, cnls_path: Path, issea_path: Path) -> bytes:
     """PDF récapitulatif de tous les patients scorés."""
-    pdf = FPDF(orientation='L')   # paysage pour plus de colonnes
+    pdf = FPDF(orientation='L')
     pdf.add_page()
     pdf.set_auto_page_break(auto=True, margin=12)
 
-    # En-tête
     pdf.set_fill_color(11, 45, 82)
     pdf.rect(0, 0, 297, 30, 'F')
     try:
@@ -1007,7 +921,6 @@ def generate_batch_pdf(df_res: pd.DataFrame, cnls_path: Path, issea_path: Path) 
     pdf.set_xy(40, 16)
     pdf.cell(217, 5, safe(f'CNLS / GTC Cameroun | {datetime.now().strftime("%d/%m/%Y %H:%M")} | {len(df_res)} patients'), align='C')
 
-    # Statistiques résumé
     pdf.set_xy(10, 36)
     pdf.set_text_color(11, 45, 82)
     pdf.set_font('Helvetica', 'B', 10)
@@ -1017,26 +930,21 @@ def generate_batch_pdf(df_res: pd.DataFrame, cnls_path: Path, issea_path: Path) 
     n_high = (df_res["Niveau de risque"].str.startswith("El")).sum()
     pdf.cell(0, 6, safe(f'Resume : {n_tot} patients | Faible : {n_low} | Modere : {n_mod} | Eleve : {n_high}'), ln=True)
 
-    # Tableau
     pdf.ln(2)
     cols_show = (["ID_Patient"] if "ID_Patient" in df_res.columns else []) + \
-                COLS_REQUIS[:6] + ["Probabilité (%)", "Niveau de risque"]
-    col_widths = [22] * len(cols_show)
+                COLS_REQUIS + ["Probabilité (%)", "Niveau de risque"]
+    col_widths = [round(277 / len(cols_show), 1)] * len(cols_show)
     if "ID_Patient" in cols_show:
-        col_widths[0] = 18
-    col_widths[-1] = 28
-    col_widths[-2] = 22
+        col_widths[0] = 14
 
-    # En-tête tableau
     pdf.set_fill_color(11, 45, 82)
     pdf.set_text_color(255, 255, 255)
-    pdf.set_font('Helvetica', 'B', 7)
+    pdf.set_font('Helvetica', 'B', 6.5)
     for col, w in zip(cols_show, col_widths):
-        pdf.cell(w, 7, safe(col[:18]), border=1, fill=True, align='C')
+        pdf.cell(w, 7, safe(col[:16]), border=1, fill=True, align='C')
     pdf.ln()
 
-    # Lignes
-    pdf.set_font('Helvetica', '', 7)
+    pdf.set_font('Helvetica', '', 6.5)
     for i, (_, row) in enumerate(df_res.iterrows()):
         niv = str(row.get("Niveau de risque", ""))
         if niv.startswith("El"):
@@ -1050,11 +958,10 @@ def generate_batch_pdf(df_res: pd.DataFrame, cnls_path: Path, issea_path: Path) 
             pdf.set_text_color(30, 100, 60)
 
         for col, w in zip(cols_show, col_widths):
-            val = str(row.get(col, ""))[:20]
+            val = str(row.get(col, ""))[:16]
             pdf.cell(w, 6, safe(val), border=1, fill=True, align='C')
         pdf.ln()
 
-    # Pied de page
     pdf.set_y(-12)
     pdf.set_font('Helvetica', 'I', 7)
     pdf.set_text_color(160, 160, 160)
@@ -1076,86 +983,79 @@ with tab1:
     st.markdown(f"""
 <div style="background:#fff;border-radius:14px;padding:18px 22px 6px 22px;
      margin-bottom:4px;box-shadow:0 2px 10px rgba(0,0,0,0.06);border-top:4px solid #1a5e8a;">
-  <div style="font-size:1.02em;font-weight:700;color:#0b2d52;">{t("form_intro")}</div>
+  <div style="font-size:1.02em;font-weight:700;color:#0b2d52;">{t("form_intro").format(MODEL_NAME)}</div>
   <div style="font-size:0.84em;color:#777;margin-top:3px;">{t("form_sub")}</div>
 </div>
 """, unsafe_allow_html=True)
 
     with st.form("patient_form", clear_on_submit=False):
         col1, col2, col3 = st.columns(3, gap="medium")
-    
+
         with col1:
             st.markdown(
                 f'<div style="font-size:0.82em;font-weight:700;color:#1a5e8a;'
                 f'text-transform:uppercase;letter-spacing:1px;padding:8px 0 6px 0;'
                 f'border-bottom:2px solid #d0e4f7;margin-bottom:12px;">'
-                f'{t("sec_loc")}</div>', unsafe_allow_html=True)
+                f'{t("sec_soins")}</div>', unsafe_allow_html=True)
             region    = st.selectbox(t("region"),    T["region_opts"][L],    key=f"{L}_region")
             type_fosa = st.selectbox(t("type_fosa"), T["type_fosa_opts"][L], key=f"{L}_fosa")
-            pepfar    = st.radio(t("pepfar"),  [t("non"), t("oui")], horizontal=True, key=f"{L}_pepfar")
-            milieu    = st.radio(t("milieu"),  [t("urbain"), t("rural")], horizontal=True, key=f"{L}_milieu")
-    
+            dsd       = st.selectbox(t("dsd"),       T["dsd_opts"][L],       key=f"{L}_dsd")
+            delai     = st.selectbox(t("delai"),     T["delai_opts"][L],     key=f"{L}_delai")
+
         with col2:
             st.markdown(
                 f'<div style="font-size:0.82em;font-weight:700;color:#0d7a5c;'
                 f'text-transform:uppercase;letter-spacing:1px;padding:8px 0 6px 0;'
                 f'border-bottom:2px solid #c3e8da;margin-bottom:12px;">'
-                f'{t("sec_socio")}</div>', unsafe_allow_html=True)
-            sexe         = st.radio(t("sexe"),         [t("feminin"), t("masculin")], horizontal=True, key=f"{L}_sexe")
-            tranche_age  = st.selectbox(t("tranche_age"),  T["tranche_age_opts"][L],  key=f"{L}_age")
-            niveau_etude = st.selectbox(t("niveau_etude"), T["niveau_etude_opts"][L], key=f"{L}_etude")
-            statut_mat   = st.selectbox(t("statut_mat"),   T["statut_mat_opts"][L],   key=f"{L}_statut")
-    
+                f'{t("sec_thera")}</div>', unsafe_allow_html=True)
+            observance = st.selectbox(t("observance"), T["observance_opts"][L], key=f"{L}_observance")
+            retesting  = st.radio(t("retesting"), [t("non"), t("oui")], horizontal=True, key=f"{L}_retesting")
+
         with col3:
             st.markdown(
                 f'<div style="font-size:0.82em;font-weight:700;color:#6c3483;'
                 f'text-transform:uppercase;letter-spacing:1px;padding:8px 0 6px 0;'
                 f'border-bottom:2px solid #e8d5f5;margin-bottom:12px;">'
-                f'{t("sec_thera")}</div>', unsafe_allow_html=True)
-            activite   = st.radio(t("activite"),   [t("non"), t("oui")], horizontal=True, key=f"{L}_activite")
-            observance = st.selectbox(t("observance"),  T["observance_opts"][L], key=f"{L}_observance")
-            dsd        = st.selectbox(t("dsd"),         T["dsd_opts"][L],        key=f"{L}_dsd")
-            protocole  = st.selectbox(t("protocole"),   T["protocole_opts"][L],  key=f"{L}_protocole")
-    
+                f'{t("sec_socio")}</div>', unsafe_allow_html=True)
+            religion     = st.selectbox(t("religion"),     T["religion_opts"][L],     key=f"{L}_religion")
+            niveau_etude = st.selectbox(t("niveau_etude"), T["niveau_etude_opts"][L], key=f"{L}_etude")
+            revenu       = st.selectbox(t("revenu"),       T["revenu_opts"][L],       key=f"{L}_revenu")
+            depenses     = st.selectbox(t("depenses"),     T["depenses_opts"][L],     key=f"{L}_depenses")
+
         st.markdown("<br>", unsafe_allow_html=True)
         submitted = st.form_submit_button(t("btn_calc"), use_container_width=True, type="primary")
-    
-    # ─────────────────────────────────────────────────────────────────────────────
+
+    # ─────────────────────────────────────────────────────────────────────────
     # RÉSULTATS
-    # ─────────────────────────────────────────────────────────────────────────────
+    # ─────────────────────────────────────────────────────────────────────────
     if submitted:
-        # Convertir en valeurs internes (FR identiques à l'entraînement)
-        region_fr    = REGION_EN2FR.get(region, region)              if L == "en" else region
+        region_fr    = REGION_EN2FR.get(region, region)          if L == "en" else region
         type_fosa_fr = FOSA_INTERNAL[type_fosa]
-        pepfar_fr    = "Oui" if pepfar == t("oui") else "Non"
-        milieu_fr    = "Urbain" if milieu == t("urbain") else "Rural"
-        sexe_fr      = "Masculin" if sexe == t("masculin") else "Féminin"
-        tranche_fr   = AGE_EN2FR.get(tranche_age, tranche_age)       if L == "en" else tranche_age
-        etude_fr     = ETUDE_EN2FR.get(niveau_etude, niveau_etude)   if L == "en" else niveau_etude
-        statut_fr    = STATUT_EN2FR.get(statut_mat, statut_mat)      if L == "en" else statut_mat
-        activite_fr  = "Oui" if activite == t("oui") else "Non"
+        dsd_fr       = DSD_EN2FR.get(dsd, dsd)                    if L == "en" else dsd
+        delai_fr     = DELAI_EN2FR.get(delai, delai)              if L == "en" else delai
         observ_fr    = OBSERVANCE_INTERNAL[observance]
-        dsd_fr       = DSD_EN2FR.get(dsd, dsd)                       if L == "en" else dsd
-        proto_fr     = PROTO_EN2FR.get(protocole, protocole)         if L == "en" else protocole
-    
+        retesting_fr = "Oui" if retesting == t("oui") else "Non"
+        religion_fr  = RELIGION_EN2FR.get(religion, religion)     if L == "en" else religion
+        etude_fr     = ETUDE_EN2FR.get(niveau_etude, niveau_etude) if L == "en" else niveau_etude
+        revenu_fr    = REVENU_EN2FR.get(revenu, revenu)           if L == "en" else revenu
+        depenses_fr  = DEPENSES_EN2FR.get(depenses, depenses)     if L == "en" else depenses
+
         raw_fr = {
-            "Tranche_Age":        tranche_fr,
-            "Sexe":               sexe_fr,
-            "Niveau_Etude":       etude_fr,
-            "Statut_Matrimonial": statut_fr,
-            "Region":             region_fr,
-            "Type_FOSA":          type_fosa_fr,
-            "Soutien_PEPFAR":     pepfar_fr,
-            "Milieu_Residence":   milieu_fr,
-            "Observance_4j":      observ_fr,
-            "Activite_Remuneree": activite_fr,
-            "DSD_Recode":         dsd_fr,
-            "Protocole_Recode":   proto_fr,
+            "Region":              region_fr,
+            "Type_FOSA":           type_fosa_fr,
+            "DSD_Recode":          dsd_fr,
+            "Delai_Attente_Cat":   delai_fr,
+            "Observance_4j":       observ_fr,
+            "Retesting":           retesting_fr,
+            "Religion":            religion_fr,
+            "Niveau_Etude":        etude_fr,
+            "Revenu":              revenu_fr,
+            "Depenses_Mensuelles": depenses_fr,
         }
-    
+
         with st.spinner(t("spinner")):
             prob = predict(raw_fr)
-    
+
         if prob < 0.30:
             niveau, color        = t("risk_low_lbl"),  "#27ae60"
             emoji_r              = "🟢"
@@ -1174,16 +1074,16 @@ with tab1:
             bg_card, bd_card     = "#fdedec", "#e74c3c"
             bg_reco, bd_reco, tc = "#fdedec", "#e74c3c", "#7b241c"
             reco = t("reco_high")
-    
+
         risk_word = "RISQUE" if L == "fr" else "RISK"
-    
+
         st.markdown(
             f'<div class="res-divider"><hr><span>{t("res_divider")}</span><hr></div>',
             unsafe_allow_html=True,
         )
-    
+
         col_g, col_r = st.columns([1, 1.45], gap="large")
-    
+
         with col_g:
             st.markdown(svg_gauge(prob, color), unsafe_allow_html=True)
             st.markdown(f"""
@@ -1198,7 +1098,7 @@ with tab1:
                     {prob:.1%}
                 </div>
                 <div style="font-size:0.8em;color:#777;margin-top:4px;">
-                    {t("seuil_txt")} : {SEUIL:.0%} — XGBoost
+                    {t("seuil_txt")} : {SEUIL:.0%} — {MODEL_NAME}
                 </div>
             </div>
             <div style="background:{bg_reco};border-left:5px solid {bd_reco};
@@ -1207,11 +1107,11 @@ with tab1:
                 <strong>{t("reco_lbl")}</strong><br>{reco}
             </div>
             """, unsafe_allow_html=True)
-    
+
         with col_r:
             if get_feature_importances(model) is not None:
                 st.markdown(
-                    f'<div style="font-size:0.83em;color:#777;margin-bottom:6px;">{t("imp_sub")}</div>',
+                    f'<div style="font-size:0.83em;color:#777;margin-bottom:6px;">{t("imp_sub").format(MODEL_NAME)}</div>',
                     unsafe_allow_html=True,
                 )
                 st.pyplot(draw_importance(10), use_container_width=True)
@@ -1221,27 +1121,27 @@ with tab1:
                     unsafe_allow_html=True,
                 )
             else:
-                st.info("📊 Ce modèle ne fournit pas d'importances de variables (SVM RBF)." if L=="fr"
-                        else "📊 This model does not provide feature importances (SVM RBF).")
-    
+                st.info("📊 Ce modèle ne fournit pas d'importances de variables." if L=="fr"
+                        else "📊 This model does not provide feature importances.")
+
             with st.expander(t("recap_title")):
                 var_labels = {
-                    "fr": ["Région","Type de FOSA","Soutien PEPFAR","Milieu de résidence",
-                           "Sexe","Tranche d'âge","Niveau d'étude","Statut matrimonial",
-                           "Activité rémunérée","Observance (4j)","Mode DSD","Protocole ARV"],
-                    "en": ["Region","Health Facility Type","PEPFAR Support","Residence Setting",
-                           "Sex","Age Group","Education Level","Marital Status",
-                           "Paid Activity","Adherence (4 days)","DSD Mode","ART Protocol"],
+                    "fr": ["Région","Type de FOSA","Mode DSD","Délai d'attente",
+                           "Observance (4j)","Retesting VIH","Religion",
+                           "Niveau d'étude","Revenu mensuel","Dépenses mensuelles"],
+                    "en": ["Region","Health Facility Type","DSD Mode","Waiting Time",
+                           "Adherence (4 days)","HIV Retesting","Religion",
+                           "Education Level","Monthly Income","Monthly Expenses"],
                 }
                 recap = pd.DataFrame({
                     t("recap_var"): var_labels[L],
-                    t("recap_val"): [region, type_fosa, pepfar, milieu,
-                                     sexe, tranche_age, niveau_etude, statut_mat,
-                                     activite, observance, dsd, protocole],
+                    t("recap_val"): [region, type_fosa, dsd, delai,
+                                     observance, retesting, religion,
+                                     niveau_etude, revenu, depenses],
                 })
                 st.dataframe(recap, use_container_width=True, hide_index=True)
-    
-        # ── Bouton export PDF ─────────────────────────────────────────────────────
+
+        # ── Bouton export PDF ─────────────────────────────────────────────────
         st.markdown("<br>", unsafe_allow_html=True)
         st.markdown(
             f'<div style="background:#fff;border-radius:12px;padding:16px 20px;'
@@ -1251,8 +1151,8 @@ with tab1:
             f'</div></div>',
             unsafe_allow_html=True,
         )
-        patient_vals = [region, type_fosa, pepfar, milieu, sexe, tranche_age,
-                        niveau_etude, statut_mat, activite, observance, dsd, protocole]
+        patient_vals = [region, type_fosa, dsd, delai, observance,
+                        retesting, religion, niveau_etude, revenu, depenses]
         try:
             pdf_bytes = generate_pdf(
                 patient_vals=patient_vals,
@@ -1273,10 +1173,9 @@ with tab1:
             )
         except Exception as e:
             st.warning(f"PDF non disponible : {e}")
-    
+
 with tab2:
 
-    # ── Introduction ─────────────────────────────────────────────────────────
     intro_txt = ("Uploadez un fichier Excel ou CSV contenant les données de plusieurs patients. "
                  "L'application les scorera automatiquement et vous pourrez télécharger les résultats."
                  if L == "fr" else
@@ -1292,7 +1191,6 @@ with tab2:
     </div>
     """, unsafe_allow_html=True)
 
-    # ── Téléchargement du modèle ──────────────────────────────────────────────
     st.markdown(
         f'<div style="font-weight:600;color:#0b2d52;margin-bottom:6px;">'
         f'{"📋 Étape 1 — Téléchargez le modèle Excel à remplir" if L=="fr" else "📋 Step 1 — Download the Excel template to fill in"}'
@@ -1312,7 +1210,6 @@ with tab2:
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # ── Upload du fichier ─────────────────────────────────────────────────────
     st.markdown(
         f'<div style="font-weight:600;color:#0b2d52;margin-bottom:6px;">'
         f'{"📤 Étape 2 — Uploadez votre fichier rempli" if L=="fr" else "📤 Step 2 — Upload your filled file"}'
@@ -1322,7 +1219,6 @@ with tab2:
     uploaded = st.file_uploader(upload_label, type=["xlsx", "xls", "csv"], key="batch_upload")
 
     if uploaded is not None:
-        # Lecture du fichier
         try:
             if uploaded.name.lower().endswith(".csv"):
                 df_up = pd.read_csv(uploaded, sep=None, engine="python")
@@ -1333,7 +1229,6 @@ with tab2:
             df_up = None
 
         if df_up is not None:
-            # Vérification des colonnes
             missing = [c for c in COLS_REQUIS if c not in df_up.columns]
             if missing:
                 st.error(
@@ -1346,24 +1241,20 @@ with tab2:
             else:
                 st.success(f"✅ {'Fichier valide' if L=='fr' else 'Valid file'} — {len(df_up)} {'patients détectés' if L=='fr' else 'patients detected'}")
 
-                # Aperçu
                 with st.expander("👁️ Aperçu du fichier" if L == "fr" else "👁️ File preview"):
                     st.dataframe(df_up.head(5), use_container_width=True)
 
-                # Bouton de scoring
                 btn_score = "🔍 Scorer tous les patients" if L == "fr" else "🔍 Score all patients"
                 if st.button(btn_score, type="primary", use_container_width=True, key="batch_score_btn"):
                     with st.spinner("Calcul en cours…" if L == "fr" else "Computing…"):
                         df_res = score_dataframe(df_up)
 
-                    # Résultats
                     st.markdown("<br>", unsafe_allow_html=True)
                     st.markdown(
                         f'<div style="font-weight:700;font-size:1em;color:#0b2d52;margin-bottom:8px;">'
                         f'{"📊 Résultats du scoring" if L=="fr" else "📊 Scoring Results"}'
                         f'</div>', unsafe_allow_html=True)
 
-                    # Tableau coloré
                     def color_row(row):
                         niv = str(row.get("Niveau de risque", ""))
                         if niv.startswith("El"):
@@ -1379,7 +1270,6 @@ with tab2:
                         height=min(400, 40 + len(df_res) * 35),
                     )
 
-                    # Statistiques rapides
                     n_tot  = len(df_res)
                     n_low  = (df_res["Niveau de risque"].str.startswith("Faible")).sum()
                     n_mod  = (df_res["Niveau de risque"].str.startswith("Mod")).sum()
@@ -1393,7 +1283,6 @@ with tab2:
                     st.markdown("<br>", unsafe_allow_html=True)
                     dl1, dl2 = st.columns(2)
 
-                    # Export Excel
                     with dl1:
                         import io as _io
                         buf = _io.BytesIO()
@@ -1407,7 +1296,6 @@ with tab2:
                             use_container_width=True,
                         )
 
-                    # Export PDF récapitulatif
                     with dl2:
                         try:
                             pdf_batch = generate_batch_pdf(
@@ -1425,9 +1313,6 @@ with tab2:
                         except Exception as e:
                             st.warning(f"PDF non disponible : {e}")
 
-# ─────────────────────────────────────────────────────────────────────────────
-# ONGLET 3 : DIAGNOSTIC & VÉRIFICATION
-# ─────────────────────────────────────────────────────────────────────────────
 with tab3:
     diag_title = "🔬 Vérification du pipeline de scoring" if L == "fr" else "🔬 Scoring pipeline verification"
     diag_sub = (
@@ -1445,30 +1330,29 @@ with tab3:
     </div>
     """, unsafe_allow_html=True)
 
-    # Note explicative sur les métriques
     note_titre = "ℹ️ Comprendre les résultats du modèle" if L == "fr" else "ℹ️ Understanding model results"
     note_corps = {
         "fr": f"""
-**Pourquoi certains profils "faibles risque" ont-ils une probabilité élevée ?**
+**Comment lire le score ?**
 
-Le modèle {model_key} a été entraîné avec SMOTE (ré-échantillonnage) pour équilibrer les classes. Il est optimisé pour :
-- **Rappel = {meta_m['rappel']:.0%}** → détecter un maximum d'interrupteurs réels
-- **Précision = {meta_m['precision']:.0%}** → sur 3 patients classés "à risque", seulement {meta_m['precision']:.0%} interrompront réellement
+Le modèle {MODEL_NAME} a été entraîné en Class Weight (rééquilibrage des classes sans duplication de données) sur les 10 variables les plus associées statistiquement à l'interruption du TARV. Il est optimisé pour :
+- **Rappel = {meta['rappel']:.0%}** → détecter un maximum d'interrupteurs réels
+- **Précision = {meta['precision']:.0%}** → sur les patients classés « à risque », {meta['precision']:.0%} interrompront réellement
 
-**Les catégories de référence** (femme, 25-49 ans, FOSA publique, TLD, Centre...) sont les profils les plus **communs dans les données**. Le modèle a appris que ce profil type est associé à un risque plus élevé que prévu — non pas parce que ces caractéristiques sont dangereuses, mais parce qu'elles représentent la majorité des patients et capturent toute leur hétérogénéité.
+**Les catégories de référence** (Centre, FOSA publique, Standard, observance bonne...) sont les profils les plus **communs dans les données**. Le modèle compare chaque patient à ce profil de base.
 
-> **Conseil clinique** : Utilisez le score comme **signal de risque relatif** (comparer des patients entre eux) plutôt qu'en valeur absolue. Un patient à 90% représente un risque **plus élevé** qu'un patient à 40%.
+> **Conseil clinique** : utilisez le score comme **signal de risque relatif** (comparer des patients entre eux) plutôt qu'en valeur absolue.
         """,
         "en": f"""
-**Why do some "low risk" profiles get high probabilities?**
+**How to read the score?**
 
-The {model_key} model was trained with SMOTE (resampling) to balance classes. It is optimized for:
-- **Recall = {meta_m['rappel']:.0%}** → detect as many true interruptors as possible
-- **Precision = {meta_m['precision']:.0%}** → out of 3 patients classified "at risk", only {meta_m['precision']:.0%} will actually interrupt
+The {MODEL_NAME} model was trained with Class Weight (class rebalancing without data duplication) on the 10 variables most statistically associated with ART interruption. It is optimized for:
+- **Recall = {meta['rappel']:.0%}** → detect as many true interruptors as possible
+- **Precision = {meta['precision']:.0%}** → out of patients classified "at risk", {meta['precision']:.0%} will actually interrupt
 
-**Reference categories** (female, 25-49 yrs, public facility, TLD, Centre...) are the **most common profiles in the data**. The model learned that this typical profile is associated with higher risk than expected — not because these characteristics are dangerous, but because they represent the majority of patients and capture all their heterogeneity.
+**Reference categories** (Centre, public facility, Standard, good adherence...) are the **most common profiles in the data**. The model compares each patient to this baseline profile.
 
-> **Clinical advice**: Use the score as a **relative risk signal** (compare patients to each other) rather than in absolute value. A patient at 90% represents **higher risk** than a patient at 40%.
+> **Clinical advice**: use the score as a **relative risk signal** (compare patients to each other) rather than in absolute value.
         """
     }
     with st.expander(note_titre, expanded=True):
@@ -1476,13 +1360,12 @@ The {model_key} model was trained with SMOTE (resampling) to balance classes. It
 
     st.divider()
 
-    # Profils de test de référence
     test_titre = "🧪 Profils de test de référence" if L == "fr" else "🧪 Reference test profiles"
     st.markdown(f"#### {test_titre}")
     test_sub = (
-        "Appuyez sur le bouton pour scorer les 5 profils de référence et vérifier le comportement du modèle sélectionné."
+        "Appuyez sur le bouton pour scorer 4 profils de référence et vérifier le comportement du modèle."
         if L == "fr" else
-        "Click the button to score 5 reference profiles and verify the selected model's behavior."
+        "Click the button to score 4 reference profiles and verify the model's behavior."
     )
     st.markdown(f'<div style="font-size:0.85em;color:#666;margin-bottom:12px;">{test_sub}</div>',
                 unsafe_allow_html=True)
@@ -1494,144 +1377,105 @@ The {model_key} model was trained with SMOTE (resampling) to balance classes. It
             "risque_attendu_fr": "Risque de référence (baseline du modèle)",
             "risque_attendu_en": "Reference risk (model baseline)",
             "raw": {
-                "Tranche_Age": "25 à 49 Ans", "Sexe": "Féminin", "Niveau_Etude": "Primaire",
-                "Statut_Matrimonial": "Marié(e) en monogamie", "Region": "Centre",
-                "Type_FOSA": "Public", "Soutien_PEPFAR": "Non", "Milieu_Residence": "Urbain",
-                "Observance_4j": "Bonne", "Activite_Remuneree": "Non",
-                "DSD_Recode": "Standard (Suivi classique)", "Protocole_Recode": "TDF+3TC+DTG (TLD)"
-            }
+                "Region": "Centre", "Type_FOSA": "Public", "DSD_Recode": "Standard",
+                "Delai_Attente_Cat": "≤15 min", "Observance_4j": "Bonne", "Retesting": "Non",
+                "Religion": "Catholique", "Niveau_Etude": "Jamais fréquenté",
+                "Revenu": "Moins de 10 000", "Depenses_Mensuelles": "Moins de 5 000",
+            },
         },
         {
-            "nom_fr": "Profil 2 — Observance médiocre, rural, jeune",
-            "nom_en": "Profile 2 — Poor adherence, rural, young",
+            "nom_fr": "Profil 2 — Observance médiocre, délai long",
+            "nom_en": "Profile 2 — Poor adherence, long waiting time",
             "risque_attendu_fr": "Risque élevé attendu",
             "risque_attendu_en": "Expected high risk",
             "raw": {
-                "Tranche_Age": "18 à 20 Ans", "Sexe": "Masculin", "Niveau_Etude": "Jamais fréquenté",
-                "Statut_Matrimonial": "Célibataire", "Region": "Extrême-Nord",
-                "Type_FOSA": "Privé laic", "Soutien_PEPFAR": "Oui", "Milieu_Residence": "Rural",
-                "Observance_4j": "Mediocre", "Activite_Remuneree": "Oui",
-                "DSD_Recode": "Dispensation communautaire / VAD",
-                "Protocole_Recode": "Autre / Non spécifié"
-            }
+                "Region": "Extrême-Nord", "Type_FOSA": "Privé laic", "DSD_Recode": "DSD avec décalage RDV",
+                "Delai_Attente_Cat": ">60 min", "Observance_4j": "Mediocre", "Retesting": "Oui",
+                "Religion": "Musulman", "Niveau_Etude": "Jamais fréquenté",
+                "Revenu": "Moins de 10 000", "Depenses_Mensuelles": "25 000 et plus",
+            },
         },
         {
-            "nom_fr": "Profil 3 — Homme, veuf, Adamaoua, observance modérée",
-            "nom_en": "Profile 3 — Male, widowed, Adamawa, moderate adherence",
-            "risque_attendu_fr": "Risque modéré-élevé attendu",
-            "risque_attendu_en": "Expected moderate-high risk",
+            "nom_fr": "Profil 3 — Observance modérée, profil intermédiaire",
+            "nom_en": "Profile 3 — Moderate adherence, intermediate profile",
+            "risque_attendu_fr": "Risque modéré attendu",
+            "risque_attendu_en": "Expected moderate risk",
             "raw": {
-                "Tranche_Age": "50 ans et plus", "Sexe": "Masculin", "Niveau_Etude": "Secondaire Premier Cycle",
-                "Statut_Matrimonial": "Veuf (ve)", "Region": "Adamaoua",
-                "Type_FOSA": "Privé confessionnel", "Soutien_PEPFAR": "Non", "Milieu_Residence": "Rural",
-                "Observance_4j": "Modérée", "Activite_Remuneree": "Oui",
-                "DSD_Recode": "Standard (Suivi classique)", "Protocole_Recode": "TDF+3TC+EFV (TELE/TLE)"
-            }
+                "Region": "Ouest", "Type_FOSA": "Privé confessionnel", "DSD_Recode": "DSD sans décalage",
+                "Delai_Attente_Cat": "31-60 min", "Observance_4j": "Modérée", "Retesting": "Non",
+                "Religion": "Protestant", "Niveau_Etude": "Secondaire Premier Cycle",
+                "Revenu": "[50 000 - 100 000[", "Depenses_Mensuelles": "[10 000 - 25 000[",
+            },
         },
         {
-            "nom_fr": "Profil 4 — Jeune femme, célibataire, PEPFAR, bonne observance",
-            "nom_en": "Profile 4 — Young woman, single, PEPFAR, good adherence",
-            "risque_attendu_fr": "Risque variable selon données",
-            "risque_attendu_en": "Variable risk according to data",
+            "nom_fr": "Profil 4 — Bonne observance, profil favorisé",
+            "nom_en": "Profile 4 — Good adherence, favourable profile",
+            "risque_attendu_fr": "Risque faible attendu",
+            "risque_attendu_en": "Expected low risk",
             "raw": {
-                "Tranche_Age": "21 à 24 Ans", "Sexe": "Féminin", "Niveau_Etude": "Supérieur",
-                "Statut_Matrimonial": "Célibataire", "Region": "Littoral",
-                "Type_FOSA": "Public", "Soutien_PEPFAR": "Oui", "Milieu_Residence": "Urbain",
-                "Observance_4j": "Bonne", "Activite_Remuneree": "Oui",
-                "DSD_Recode": "Standard (Suivi classique)", "Protocole_Recode": "TDF+3TC+DTG (TLD)"
-            }
-        },
-        {
-            "nom_fr": "Profil 5 — Observance médiocre, protocole IP, polygamie",
-            "nom_en": "Profile 5 — Poor adherence, PI protocol, polygamous",
-            "risque_attendu_fr": "Risque élevé attendu",
-            "risque_attendu_en": "Expected high risk",
-            "raw": {
-                "Tranche_Age": "25 à 49 Ans", "Sexe": "Masculin", "Niveau_Etude": "Jamais fréquenté",
-                "Statut_Matrimonial": "Marié(e) en polygamie", "Region": "Nord",
-                "Type_FOSA": "Public", "Soutien_PEPFAR": "Non", "Milieu_Residence": "Rural",
-                "Observance_4j": "Mediocre", "Activite_Remuneree": "Non",
-                "DSD_Recode": "Standard (Suivi classique)",
-                "Protocole_Recode": "Protocoles avec IP (ATV/r)"
-            }
+                "Region": "Littoral", "Type_FOSA": "Public", "DSD_Recode": "Standard",
+                "Delai_Attente_Cat": "16-30 min", "Observance_4j": "Bonne", "Retesting": "Non",
+                "Religion": "Catholique", "Niveau_Etude": "Supérieur",
+                "Revenu": "200 000 et plus", "Depenses_Mensuelles": "Moins de 5 000",
+            },
         },
     ]
 
     btn_diag = "▶ Lancer le diagnostic" if L == "fr" else "▶ Run diagnostic"
     if st.button(btn_diag, type="primary", key="btn_diag"):
         st.markdown("<br>", unsafe_allow_html=True)
-        comparaison_titre = "📊 Comparaison des 4 modèles sur les profils de test" if L == "fr" else "📊 Comparison of 4 models on test profiles"
-        st.markdown(f"#### {comparaison_titre}")
+        rows = []
+        for p in PROFILS_TEST:
+            nom = p[f"nom_{L}"]
+            attendu = p[f"risque_attendu_{L}"]
+            try:
+                p_val = predict(p["raw"])
+                score_str = f"{p_val:.1%}"
+            except Exception as e:
+                score_str = f"Err: {e}"
+            rows.append({
+                "Profil" if L == "fr" else "Profile": nom,
+                "Attendu" if L == "fr" else "Expected": attendu,
+                "Score": score_str,
+            })
+        df_diag = pd.DataFrame(rows)
+        st.dataframe(df_diag, use_container_width=True, hide_index=True)
 
-        # Scorer chaque profil avec les 4 modèles
-        try:
-            m_xgb  = load_model("XGBoost",      meta_all["XGBoost"]["fichier"])
-            m_log  = load_model("Logistique",    meta_all["Logistique"]["fichier"])
-            m_svm  = load_model("SVM",           meta_all["SVM"]["fichier"])
-            m_rf   = load_model("RandomForest",  meta_all["RandomForest"]["fichier"])
-        except Exception as e:
-            st.error(f"Erreur chargement modèles : {e}")
-            m_xgb = m_log = m_svm = m_rf = None
-
-        if m_xgb:
-            rows = []
-            for p in PROFILS_TEST:
-                raw = p["raw"]
-                nom = p[f"nom_{L}"]
-                attendu = p[f"risque_attendu_{L}"]
-                r = {"Profil" if L == "fr" else "Profile": nom,
-                     "Attendu" if L == "fr" else "Expected": attendu}
-                for m_name, m_obj in [("XGBoost", m_xgb), ("Logistique", m_log), ("SVM", m_svm), ("Random Forest", m_rf)]:
-                    try:
-                        p_val = predict_with(m_obj, raw)
-                        r[m_name] = f"{p_val:.1%}"
-                    except Exception as e:
-                        r[m_name] = f"Err: {e}"
-                rows.append(r)
-
-            df_diag = pd.DataFrame(rows)
-            st.dataframe(df_diag, use_container_width=True, hide_index=True)
-
-            interp_note = (
-                "**Comment lire ce tableau :** Plus la probabilité est élevée, plus le modèle estime le risque d'interruption élevé. "
-                f"Le modèle actif (**{model_key}**) utilise le seuil {SEUIL:.0%} défini dans la sidebar. "
-                "Des différences entre modèles sont normales et reflètent leurs objectifs différents (Rappel vs Précision)."
-                if L == "fr" else
-                "**How to read this table:** Higher probability = higher estimated interruption risk. "
-                f"The active model (**{model_key}**) uses threshold {SEUIL:.0%} set in the sidebar. "
-                "Differences between models are normal and reflect their different objectives (Recall vs Precision)."
-            )
-            st.info(interp_note)
+        interp_note = (
+            f"**Comment lire ce tableau :** Plus la probabilité est élevée, plus le modèle ({MODEL_NAME}) estime "
+            f"le risque d'interruption élevé. Le seuil actif ({SEUIL:.0%}, réglable dans la barre latérale) "
+            "détermine à partir de quelle probabilité un patient est classé « à risque »."
+            if L == "fr" else
+            f"**How to read this table:** Higher probability = higher estimated interruption risk according to "
+            f"the model ({MODEL_NAME}). The active threshold ({SEUIL:.0%}, adjustable in the sidebar) determines "
+            "from which probability a patient is classified as \"at risk\"."
+        )
+        st.info(interp_note)
 
     st.divider()
 
-    # Tableau de comparaison des métriques
-    comp_titre = "📋 Tableau comparatif des modèles" if L == "fr" else "📋 Model comparison table"
+    comp_titre = "📋 Performance du modèle retenu" if L == "fr" else "📋 Selected model performance"
     st.markdown(f"#### {comp_titre}")
-
-    comp_rows = []
-    for k, m in meta_all.items():
-        comp_rows.append({
-            ("Modèle" if L == "fr" else "Model"): k,
-            ("Rappel" if L == "fr" else "Recall"): f"{m['rappel']:.1%}",
-            ("Précision" if L == "fr" else "Precision"): f"{m['precision']:.1%}",
-            "F1-Score": f"{m['f1_score']:.3f}",
-            "AUC-ROC": f"{m['auc_roc']:.3f}",
-            ("Usage recommandé" if L == "fr" else "Recommended use"): m[usage_key],
-        })
-    st.dataframe(pd.DataFrame(comp_rows), use_container_width=True, hide_index=True)
+    comp_row = pd.DataFrame([{
+        ("Modèle" if L == "fr" else "Model"): MODEL_NAME,
+        ("Rappel" if L == "fr" else "Recall"): f"{meta['rappel']:.1%}",
+        ("Précision" if L == "fr" else "Precision"): f"{meta['precision']:.1%}",
+        "F1-Score": f"{meta['f1_score']:.3f}",
+        "AUC-ROC": f"{meta['auc_roc']:.3f}",
+    }])
+    st.dataframe(comp_row, use_container_width=True, hide_index=True)
 
     seuil_expl = (
         "**Rappel sur le seuil de décision :**\n\n"
-        "- **Seuil bas (0,30–0,40)** → Plus de patients détectés (Rappel ↑), mais plus de faux positifs (Précision ↓)\n"
-        "- **Seuil 0,50** → Seuil par défaut utilisé lors de l'évaluation des modèles\n"
-        "- **Seuil haut (0,60–0,75)** → Moins de faux positifs (Précision ↑), mais certains cas à risque manqués (Rappel ↓)\n\n"
+        "- **Seuil bas (0,20–0,40)** → Plus de patients détectés (Rappel ↑), mais plus de faux positifs (Précision ↓)\n"
+        f"- **Seuil {meta['seuil_defaut']:.2f}** → Seuil optimal déterminé lors de l'entraînement du modèle\n"
+        "- **Seuil haut (0,60–0,80)** → Moins de faux positifs (Précision ↑), mais certains cas à risque manqués (Rappel ↓)\n\n"
         "Ajustez le curseur dans la barre latérale selon la priorité clinique de votre structure."
         if L == "fr" else
         "**Decision threshold reminder:**\n\n"
-        "- **Low threshold (0.30–0.40)** → More patients detected (Recall ↑), but more false positives (Precision ↓)\n"
-        "- **Threshold 0.50** → Default threshold used during model evaluation\n"
-        "- **High threshold (0.60–0.75)** → Fewer false positives (Precision ↑), but some at-risk cases missed (Recall ↓)\n\n"
+        "- **Low threshold (0.20–0.40)** → More patients detected (Recall ↑), but more false positives (Precision ↓)\n"
+        f"- **Threshold {meta['seuil_defaut']:.2f}** → Optimal threshold determined during model training\n"
+        "- **High threshold (0.60–0.80)** → Fewer false positives (Precision ↑), but some at-risk cases missed (Recall ↓)\n\n"
         "Adjust the slider in the sidebar according to your facility's clinical priority."
     )
     st.info(seuil_expl)
@@ -1640,4 +1484,7 @@ The {model_key} model was trained with SMOTE (resampling) to balance classes. It
 # ─────────────────────────────────────────────────────────────────────────────
 # PIED DE PAGE
 # ─────────────────────────────────────────────────────────────────────────────
-st.markdown(f'<div class="footer">{t("footer")}</div>', unsafe_allow_html=True)
+st.markdown(
+    f'<div class="footer">{t("footer").format(algo=MODEL_NAME, rappel=rappel_fmt, auc=auc_fmt, n_train=meta["n_train"], n_test=meta["n_test"])}</div>',
+    unsafe_allow_html=True,
+)
