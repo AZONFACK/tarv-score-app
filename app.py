@@ -124,6 +124,8 @@ T = {
     "soutien_familial": {"fr": "Soutien familial",   "en": "Family support"},
     "traitement_alt":   {"fr": "Recours à un traitement alternatif",
                           "en": "Use of alternative treatment"},
+    "id_patient":       {"fr": "Identifiant patient (optionnel)",
+                          "en": "Patient ID (optional)"},
 
     "oui":           {"fr": "Oui",                   "en": "Yes"},
     "non":           {"fr": "Non",                   "en": "No"},
@@ -1063,6 +1065,8 @@ with tab1:
 """, unsafe_allow_html=True)
 
     with st.form("patient_form", clear_on_submit=False):
+        id_patient = st.text_input(t("id_patient"), key=f"{L}_id_patient")
+
         col1, col2, col3 = st.columns(3, gap="medium")
 
         with col1:
@@ -1160,6 +1164,19 @@ with tab1:
             bg_card, bd_card     = "#fdedec", "#e74c3c"
             bg_reco, bd_reco, tc = "#fdedec", "#e74c3c", "#7b241c"
             reco = t("reco_high")
+
+        # Historique de la session : accumule chaque patient scoré pour
+        # permettre un export en fin de session (pas de base persistante
+        # entre sessions/redémarrages — voir onglet import pour un suivi
+        # de groupe basé sur fichier).
+        st.session_state.setdefault("historique_individuel", [])
+        st.session_state["historique_individuel"].append({
+            "ID_Patient": id_patient.strip() if id_patient.strip() else f"Patient_{len(st.session_state['historique_individuel']) + 1}",
+            "Date": datetime.now().strftime("%d/%m/%Y %H:%M"),
+            **raw_fr,
+            "Probabilité (%)": round(prob * 100, 1),
+            "Niveau de risque": niveau,
+        })
 
         risk_word = "RISQUE" if L == "fr" else "RISK"
 
@@ -1263,6 +1280,43 @@ with tab1:
             )
         except Exception as e:
             st.warning(f"PDF non disponible : {e}")
+
+    historique = st.session_state.get("historique_individuel", [])
+    if historique:
+        st.markdown("<br>", unsafe_allow_html=True)
+        st.divider()
+        hist_titre = f"📜 Patients suivis cette session ({len(historique)})" if L == "fr" \
+            else f"📜 Patients tracked this session ({len(historique)})"
+        st.markdown(f"#### {hist_titre}")
+        st.caption(
+            "Cette liste n'est conservée que pendant votre session en cours (elle est perdue si vous "
+            "fermez ou rechargez la page). Téléchargez-la régulièrement si vous voulez la conserver."
+            if L == "fr" else
+            "This list is only kept for your current session (it is lost if you close or reload the "
+            "page). Download it regularly if you want to keep it."
+        )
+        df_hist = pd.DataFrame(historique)
+        st.dataframe(df_hist, use_container_width=True, height=min(350, 40 + len(df_hist) * 35))
+
+        hc1, hc2 = st.columns(2)
+        with hc1:
+            import io as _io
+            buf_hist = _io.BytesIO()
+            df_hist.to_excel(buf_hist, index=False, engine="openpyxl")
+            buf_hist.seek(0)
+            st.download_button(
+                label="⬇️ Télécharger l'historique (Excel)" if L == "fr" else "⬇️ Download history (Excel)",
+                data=buf_hist.read(),
+                file_name=f"TARV_historique_session_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True,
+                key="dl_historique",
+            )
+        with hc2:
+            if st.button("🗑️ Vider l'historique" if L == "fr" else "🗑️ Clear history",
+                         use_container_width=True, key="clear_historique"):
+                st.session_state["historique_individuel"] = []
+                st.rerun()
 
 with tab2:
 
