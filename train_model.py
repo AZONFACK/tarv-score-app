@@ -316,6 +316,9 @@ def main():
     with pd.ExcelWriter(CHEMIN_MODELES / "performances_modeles.xlsx") as writer:
         df_res.to_excel(writer, sheet_name="Comparaison modeles", index=False)
         df_calib.to_excel(writer, sheet_name="Calibration", index=False)
+        writer.book.properties.creator = "CNLS / GTC Cameroun"
+        writer.book.properties.lastModifiedBy = "CNLS / GTC Cameroun"
+        writer.book.properties.title = "Performances des modeles TARV-Score"
 
     print(f"  ✓ modele_final.pkl ({best_nom})")
     print("  ✓ scaler.pkl, colonnes_modele.pkl, references.pkl, variables_modele.pkl")

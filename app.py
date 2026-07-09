@@ -822,6 +822,13 @@ VALEURS_VALIDES = {
 }
 
 
+def set_xlsx_properties(wb, title: str) -> None:
+    """Renseigne les propriétés du classeur (au lieu du 'openpyxl' par défaut)."""
+    wb.properties.creator = "CNLS / GTC Cameroun"
+    wb.properties.lastModifiedBy = "CNLS / GTC Cameroun"
+    wb.properties.title = title
+
+
 def generate_template() -> bytes:
     """Génère un fichier Excel modèle avec les colonnes et valeurs valides."""
     import io
@@ -876,6 +883,7 @@ def generate_template() -> bytes:
         ws2.row_dimensions[row].height = 20
         row += 1
 
+    set_xlsx_properties(wb, "Modèle TARV-Score")
     buf = io.BytesIO()
     wb.save(buf)
     buf.seek(0)
@@ -1347,7 +1355,9 @@ with tab1:
         with hc1:
             import io as _io
             buf_hist = _io.BytesIO()
-            df_hist.to_excel(buf_hist, index=False, engine="openpyxl")
+            with pd.ExcelWriter(buf_hist, engine="openpyxl") as writer:
+                df_hist.to_excel(writer, sheet_name="Historique", index=False)
+                set_xlsx_properties(writer.book, "Historique de session TARV-Score")
             buf_hist.seek(0)
             st.download_button(
                 label="⬇️ Télécharger l'historique (Excel)" if L == "fr" else "⬇️ Download history (Excel)",
@@ -1484,7 +1494,9 @@ with tab2:
                     with dl1:
                         import io as _io
                         buf = _io.BytesIO()
-                        df_res.to_excel(buf, index=False, engine="openpyxl")
+                        with pd.ExcelWriter(buf, engine="openpyxl") as writer:
+                            df_res.to_excel(writer, sheet_name="Scores TARV-Score", index=False)
+                            set_xlsx_properties(writer.book, "Résultats de scoring TARV-Score")
                         buf.seek(0)
                         st.download_button(
                             label="⬇️ Télécharger Excel (avec scores)" if L == "fr" else "⬇️ Download Excel (with scores)",
