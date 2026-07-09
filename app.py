@@ -42,14 +42,13 @@ T = {
     "sidebar_title": {"fr": "🎗️ TARV-Score",         "en": "🎗️ TARV-Score"},
     "sidebar_sub":   {"fr": "CNLS Cameroun · ISSEA-CEMAC 2025-2026",
                       "en": "CNLS Cameroon · ISSEA-CEMAC 2025-2026"},
-    "perf_title":    {"fr": "📊 Performances du modèle",
-                      "en": "📊 Model Performance"},
-    "recall_lbl":    {"fr": "Rappel",                "en": "Recall"},
-    "algo_lbl":      {"fr": "Algorithme",            "en": "Algorithm"},
+    "perf_title":    {"fr": "ℹ️ À propos de l'outil",
+                      "en": "ℹ️ About this tool"},
+    "perf_body":     {
+        "fr": "Basé sur le suivi de **2 720 patients** par le CNLS en 2024. Méthode de calcul validée statistiquement.",
+        "en": "Based on the follow-up of **2,720 patients** by NACC in 2024. Statistically validated calculation method.",
+    },
     "seuil_lbl":     {"fr": "Seuil",                 "en": "Threshold"},
-    "cw_lbl":        {"fr": "Class Weight ✓",        "en": "Class Weight ✓"},
-    "train_lbl":     {"fr": "Entraînement",          "en": "Training"},
-    "test_lbl":      {"fr": "Test",                  "en": "Test"},
 
     "grid_title":    {"fr": "🚦 Grille d'interprétation",
                       "en": "🚦 Risk Interpretation Grid"},
@@ -64,17 +63,13 @@ T = {
                       "en": "ℹ️ Study Context"},
     "ctx_body":      {
         "fr": ("Données CNLS 2024 · Enquête nationale auprès de **2 720 PvVIH** dans les 10 régions du Cameroun.\n\n"
-               "Modèle retenu parmi 4 candidats comparés (Régression Logistique, Random Forest, SVM, XGBoost) "
-               "sur **14 variables** : 8 sélectionnées statistiquement, 4 protégées par la littérature "
-               "(Sexe, Âge, Statut matrimonial, Soutien PEPFAR) et 2 ajoutées à la demande du CNLS "
-               "(Soutien familial, Traitement alternatif). Sélection sur **score composite** "
-               "(Sensibilité, Spécificité, Précision, AUC-ROC, AUC-PR, Brier à poids égal)."),
+               "Outil basé sur **14 caractéristiques du patient** (parcours de soins, suivi thérapeutique, "
+               "profil socio-démographique), choisies pour leur lien statistique avec l'interruption du TARV "
+               "et validées avec le CNLS."),
         "en": ("CNLS 2024 data · National survey of **2,720 PLHIV** across Cameroon's 10 regions.\n\n"
-               "Model selected among 4 compared candidates (Logistic Regression, Random Forest, SVM, XGBoost) "
-               "on **14 variables**: 8 statistically selected, 4 protected by the literature "
-               "(Sex, Age, Marital status, PEPFAR support) and 2 added at CNLS's request "
-               "(Family support, Alternative treatment). Selected on a **composite score** "
-               "(Sensitivity, Specificity, Precision, AUC-ROC, AUC-PR, Brier equally weighted)."),
+               "Tool based on **14 patient characteristics** (care pathway, therapeutic follow-up, "
+               "socio-demographic profile), chosen for their statistical link with ART interruption "
+               "and validated with NACC."),
     },
     "disclaimer":    {
         "fr": "⚠️ Outil d'aide à la décision.<br>Ne remplace pas le jugement clinique.",
@@ -91,13 +86,12 @@ T = {
         "en": "Prediction of the risk of Antiretroviral Treatment interruption",
     },
     "badge_cnls":    {"fr": "CNLS Cameroun",         "en": "NACC Cameroon"},
-    "badge_recall":  {"fr": "Rappel",                 "en": "Recall"},
-    "badge_auc":     {"fr": "AUC-ROC",               "en": "AUC-ROC"},
+    "badge_validated": {"fr": "✓ Outil validé",       "en": "✓ Validated tool"},
 
     # ── Formulaire ───────────────────────────────────────────────────────────
     "form_intro":    {
-        "fr": "📋 Profil du patient — 14 variables du modèle {}",
-        "en": "📋 Patient Profile — 14 variables of the {} model",
+        "fr": "📋 Profil du patient — 14 caractéristiques à renseigner",
+        "en": "📋 Patient Profile — 14 characteristics to fill in",
     },
     "form_sub":      {
         "fr": "Renseignez toutes les caractéristiques, puis cliquez sur <strong>Calculer le Score</strong>.",
@@ -178,13 +172,13 @@ T = {
     },
 
     "imp_sub":       {
-        "fr": "Importances globales du modèle {} — plus la barre est longue, plus la variable pèse dans la prédiction.",
-        "en": "Global {} feature importances — longer bar = more weight in the prediction.",
+        "fr": "Plus la barre est longue, plus la caractéristique pèse dans le calcul du score.",
+        "en": "Longer bar = more weight in the score calculation.",
     },
     "imp_title":     {"fr": "🔬 Top {} facteurs les plus contributifs",
                       "en": "🔬 Top {} most contributing factors"},
-    "imp_xlabel":    {"fr": "Importance / Coefficient (valeur absolue)",
-                      "en": "Importance / Coefficient (absolute value)"},
+    "imp_xlabel":    {"fr": "Poids dans le calcul du score",
+                      "en": "Weight in the score calculation"},
     "imp_legend":    {
         "fr": "🔴 Importance forte &nbsp;|&nbsp; 🟠 Modérée &nbsp;|&nbsp; 🟢 Modérée-faible &nbsp;|&nbsp; 🔵 Faible",
         "en": "🔴 High importance &nbsp;|&nbsp; 🟠 Moderate &nbsp;|&nbsp; 🟢 Moderate-low &nbsp;|&nbsp; 🔵 Low",
@@ -197,12 +191,10 @@ T = {
     # ── Pied de page ─────────────────────────────────────────────────────────
     "footer": {
         "fr": ("🎗️ <strong>TARV-Score</strong> — Mémoire ISE3 ISSEA-CEMAC 2025-2026 &nbsp;|&nbsp; "
-               "CNLS / GTC Cameroun &nbsp;·&nbsp; {algo} &nbsp;·&nbsp; Rappel : {rappel} &nbsp;·&nbsp; "
-               "AUC-ROC : {auc} &nbsp;·&nbsp; N entraînement : {n_train} &nbsp;·&nbsp; N test : {n_test}<br>"
+               "CNLS / GTC Cameroun<br>"
                "<em>⚠️ Outil d'aide à la décision — Ne remplace pas le jugement clinique du prestataire de santé.</em>"),
         "en": ("🎗️ <strong>TARV-Score</strong> — ISE3 Thesis ISSEA-CEMAC 2025-2026 &nbsp;|&nbsp; "
-               "NACC / GTC Cameroon &nbsp;·&nbsp; {algo} &nbsp;·&nbsp; Recall: {rappel} &nbsp;·&nbsp; "
-               "AUC-ROC: {auc} &nbsp;·&nbsp; Train N: {n_train} &nbsp;·&nbsp; Test N: {n_test}<br>"
+               "NACC / GTC Cameroon<br>"
                "<em>⚠️ Decision-support tool — Does not replace the clinical judgment of the healthcare provider.</em>"),
     },
 
@@ -367,8 +359,6 @@ except Exception as exc:
     st.error(f"❌ {'Impossible de charger le modèle' if L=='fr' else 'Cannot load the model'}: {exc}")
     st.stop()
 
-MODEL_NAME = meta["nom_modele"]
-
 # ─────────────────────────────────────────────────────────────────────────────
 # SEUIL DE DECISION (sidebar)
 # ─────────────────────────────────────────────────────────────────────────────
@@ -377,16 +367,9 @@ with st.sidebar:
     st.caption(t("sidebar_sub"))
     st.divider()
 
-    st.markdown(f"### {t('perf_title')} — {MODEL_NAME}")
-    c1, c2 = st.columns(2)
-    rappel_fmt    = f"{meta['rappel']:.1%}".replace(".", ",") if L == "fr" else f"{meta['rappel']:.1%}"
-    precision_fmt = f"{meta['precision']:.1%}".replace(".", ",") if L == "fr" else f"{meta['precision']:.1%}"
-    auc_fmt       = f"{meta['auc_roc']:.3f}".replace(".", ",") if L == "fr" else f"{meta['auc_roc']:.3f}"
-    c1.metric(t("recall_lbl"), rappel_fmt)
-    c2.metric("AUC-ROC",       auc_fmt)
-    c1.metric(t("train_lbl"),  f"{meta['n_train']:,}".replace(",", " "))
-    c2.metric(t("test_lbl"),   f"{meta['n_test']:,}".replace(",", " "))
-    prec_lbl = "Précision" if L == "fr" else "Precision"
+    st.markdown(f"### {t('perf_title')}")
+    st.markdown(f'<p style="font-size:0.85em;line-height:1.5;opacity:0.9;">{t("perf_body")}</p>',
+                unsafe_allow_html=True)
 
     st.markdown("<br>", unsafe_allow_html=True)
     seuil_title = "🎚️ Seuil de décision" if L == "fr" else "🎚️ Decision Threshold"
@@ -401,7 +384,7 @@ with st.sidebar:
         key="seuil_slider",
         label_visibility="collapsed",
     )
-    st.caption(f"{t('algo_lbl')} : {MODEL_NAME}  |  {t('seuil_lbl')} : {SEUIL:.0%}  |  {prec_lbl} : {precision_fmt}  |  {t('cw_lbl')}")
+    st.caption(f"{t('seuil_lbl')} : {SEUIL:.0%}")
 
     st.divider()
     st.markdown(f"### {t('grid_title')}")
@@ -456,9 +439,7 @@ st.markdown(f"""
         <div style="font-size:0.88em; font-weight:300; opacity:0.88; margin-top:9px;">{t("main_sub")}</div>
         <div style="display:flex; gap:8px; justify-content:center; flex-wrap:wrap; margin-top:13px;">
             <span style="background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);border-radius:20px;padding:3px 14px;font-size:0.78em;font-weight:600;">{t("badge_cnls")}</span>
-            <span style="background:rgba(39,174,96,0.35);border:1px solid rgba(39,174,96,0.6);border-radius:20px;padding:3px 14px;font-size:0.78em;font-weight:600;">{t("badge_recall")} : {rappel_fmt}</span>
-            <span style="background:rgba(52,152,219,0.35);border:1px solid rgba(52,152,219,0.6);border-radius:20px;padding:3px 14px;font-size:0.78em;font-weight:600;">{t("badge_auc")} : {auc_fmt}</span>
-            <span style="background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);border-radius:20px;padding:3px 14px;font-size:0.78em;font-weight:600;">⚙️ {MODEL_NAME}</span>
+            <span style="background:rgba(39,174,96,0.35);border:1px solid rgba(39,174,96,0.6);border-radius:20px;padding:3px 14px;font-size:0.78em;font-weight:600;">{t("badge_validated")}</span>
         </div>
     </div>
     <img src="data:image/png;base64,{issea_b64}" height="130"
@@ -599,6 +580,18 @@ MODALITY_EN = {
 
 
 def get_feature_importances(mdl):
+    # CalibratedClassifierCV (utilisé pour fiabiliser les probabilités) masque
+    # feature_importances_/coef_ du modèle sous-jacent : on va les chercher
+    # dans le premier estimateur calibré, moyennées sur les folds si possible.
+    if hasattr(mdl, "calibrated_classifiers_"):
+        import numpy as np
+        estimateurs = [cc.estimator for cc in mdl.calibrated_classifiers_]
+        if all(hasattr(e, "feature_importances_") for e in estimateurs):
+            return np.mean([e.feature_importances_ for e in estimateurs], axis=0)
+        if all(hasattr(e, "coef_") for e in estimateurs):
+            coefs = [e.coef_[0] if e.coef_.ndim > 1 else e.coef_ for e in estimateurs]
+            return np.abs(np.mean(coefs, axis=0))
+        return None
     if hasattr(mdl, "feature_importances_"):
         return mdl.feature_importances_
     elif hasattr(mdl, "coef_"):
@@ -703,7 +696,7 @@ def generate_pdf(patient_vals: list, prob: float, niveau: str,
     pdf.cell(110, 5, safe('CNLS / GTC Cameroun | ISSEA-CEMAC 2025-2026'), align='C', ln=True)
     pdf.set_xy(50, 33)
     pdf.set_font('Helvetica', 'I', 7)
-    pdf.cell(110, 5, safe(f"{MODEL_NAME} | Rappel : {meta['rappel']:.1%} | AUC-ROC : {meta['auc_roc']:.3f} | Seuil : {SEUIL:.0%}"), align='C')
+    pdf.cell(110, 5, safe(f"Seuil : {SEUIL:.0%}"), align='C')
 
     # ── Date d'évaluation ────────────────────────────────────────────────────
     pdf.set_text_color(100, 100, 100)
@@ -732,9 +725,9 @@ def generate_pdf(patient_vals: list, prob: float, niveau: str,
     pdf.set_text_color(120, 120, 120)
     pdf.set_font('Helvetica', '', 8)
     pdf.set_xy(10, 80)
-    seuil_txt = (f'Seuil de classification : {SEUIL:.0%} — Modele {MODEL_NAME}'
+    seuil_txt = (f'Seuil de classification : {SEUIL:.0%}'
                  if lang == 'fr' else
-                 f'Classification threshold: {SEUIL:.0%} — {MODEL_NAME} model')
+                 f'Classification threshold: {SEUIL:.0%}')
     pdf.cell(190, 5, safe(seuil_txt), align='C')
 
     # ── Profil du patient ─────────────────────────────────────────────────────
@@ -1013,7 +1006,7 @@ with tab1:
     st.markdown(f"""
 <div style="background:#fff;border-radius:14px;padding:18px 22px 6px 22px;
      margin-bottom:4px;box-shadow:0 2px 10px rgba(0,0,0,0.06);border-top:4px solid #1a5e8a;">
-  <div style="font-size:1.02em;font-weight:700;color:#0b2d52;">{t("form_intro").format(MODEL_NAME)}</div>
+  <div style="font-size:1.02em;font-weight:700;color:#0b2d52;">{t("form_intro")}</div>
   <div style="font-size:0.84em;color:#777;margin-top:3px;">{t("form_sub")}</div>
 </div>
 """, unsafe_allow_html=True)
@@ -1140,7 +1133,7 @@ with tab1:
                     {prob:.1%}
                 </div>
                 <div style="font-size:0.8em;color:#777;margin-top:4px;">
-                    {t("seuil_txt")} : {SEUIL:.0%} — {MODEL_NAME}
+                    {t("seuil_txt")} : {SEUIL:.0%}
                 </div>
             </div>
             <div style="background:{bg_reco};border-left:5px solid {bd_reco};
@@ -1153,7 +1146,7 @@ with tab1:
         with col_r:
             if get_feature_importances(model) is not None:
                 st.markdown(
-                    f'<div style="font-size:0.83em;color:#777;margin-bottom:6px;">{t("imp_sub").format(MODEL_NAME)}</div>',
+                    f'<div style="font-size:0.83em;color:#777;margin-bottom:6px;">{t("imp_sub")}</div>',
                     unsafe_allow_html=True,
                 )
                 st.pyplot(draw_importance(10), use_container_width=True)
@@ -1376,29 +1369,23 @@ with tab3:
     </div>
     """, unsafe_allow_html=True)
 
-    note_titre = "ℹ️ Comprendre les résultats du modèle" if L == "fr" else "ℹ️ Understanding model results"
+    note_titre = "ℹ️ Comprendre les résultats" if L == "fr" else "ℹ️ Understanding the results"
     note_corps = {
-        "fr": f"""
+        "fr": """
 **Comment lire le score ?**
 
-Le modèle {MODEL_NAME} a été entraîné en Class Weight (rééquilibrage des classes sans duplication de données) sur les 14 variables les plus associées statistiquement à l'interruption du TARV. Il a été retenu parmi 4 candidats sur la base d'un **score composite** combinant à poids égal 6 métriques (Sensibilité, Spécificité, Précision, AUC-ROC, AUC-PR, Brier) — un choix robuste sur toutes les dimensions plutôt qu'optimal sur un seul critère :
-- **Rappel = {meta['rappel']:.0%}** → détecter un maximum d'interrupteurs réels
-- **Spécificité = {meta['specificite']:.0%}** → éviter les fausses alertes chez les patients stables
-- **Précision = {meta['precision']:.0%}** → sur les patients classés « à risque », {meta['precision']:.0%} interrompront réellement
+L'outil a été validé sur les 14 caractéristiques les plus associées à l'interruption du TARV, avec une méthode de sélection statistique robuste, ne privilégiant aucun critère unique.
 
-**Les catégories de référence** (Centre, FOSA publique, Standard, observance bonne...) sont les profils les plus **communs dans les données**. Le modèle compare chaque patient à ce profil de base.
+**Les catégories de référence** (Centre, FOSA publique, Standard, observance bonne...) sont les profils les plus **communs dans les données**. Le score de chaque patient est calculé par comparaison à ce profil de base.
 
 > **Conseil clinique** : utilisez le score comme **signal de risque relatif** (comparer des patients entre eux) plutôt qu'en valeur absolue.
         """,
-        "en": f"""
+        "en": """
 **How to read the score?**
 
-The {MODEL_NAME} model was trained with Class Weight (class rebalancing without data duplication) on the 14 variables most statistically associated with ART interruption. It was selected among 4 candidates based on a **composite score** equally combining 6 metrics (Sensitivity, Specificity, Precision, AUC-ROC, AUC-PR, Brier) — a choice robust across all dimensions rather than optimal on a single criterion:
-- **Recall = {meta['rappel']:.0%}** → detect as many true interruptors as possible
-- **Specificity = {meta['specificite']:.0%}** → avoid false alarms among stable patients
-- **Precision = {meta['precision']:.0%}** → out of patients classified "at risk", {meta['precision']:.0%} will actually interrupt
+The tool was validated on the 14 characteristics most associated with ART interruption, using a robust statistical selection method that does not favour any single criterion.
 
-**Reference categories** (Centre, public facility, Standard, good adherence...) are the **most common profiles in the data**. The model compares each patient to this baseline profile.
+**Reference categories** (Centre, public facility, Standard, good adherence...) are the **most common profiles in the data**. Each patient's score is computed by comparison to this baseline profile.
 
 > **Clinical advice**: use the score as a **relative risk signal** (compare patients to each other) rather than in absolute value.
         """
@@ -1502,50 +1489,29 @@ The {MODEL_NAME} model was trained with Class Weight (class rebalancing without 
         st.dataframe(df_diag, use_container_width=True, hide_index=True)
 
         interp_note = (
-            f"**Comment lire ce tableau :** Plus la probabilité est élevée, plus le modèle ({MODEL_NAME}) estime "
-            f"le risque d'interruption élevé. Le seuil actif ({SEUIL:.0%}, réglable dans la barre latérale) "
+            f"**Comment lire ce tableau :** Plus la probabilité est élevée, plus le risque d'interruption estimé "
+            f"est élevé. Le seuil actif ({SEUIL:.0%}, réglable dans la barre latérale) "
             "détermine à partir de quelle probabilité un patient est classé « à risque »."
             if L == "fr" else
-            f"**How to read this table:** Higher probability = higher estimated interruption risk according to "
-            f"the model ({MODEL_NAME}). The active threshold ({SEUIL:.0%}, adjustable in the sidebar) determines "
+            f"**How to read this table:** The higher the probability, the higher the estimated interruption risk. "
+            f"The active threshold ({SEUIL:.0%}, adjustable in the sidebar) determines "
             "from which probability a patient is classified as \"at risk\"."
         )
         st.info(interp_note)
 
     st.divider()
 
-    comp_titre = "📋 Performance du modèle retenu" if L == "fr" else "📋 Selected model performance"
-    st.markdown(f"#### {comp_titre}")
-    comp_row = pd.DataFrame([{
-        ("Modèle" if L == "fr" else "Model"): MODEL_NAME,
-        ("Rappel" if L == "fr" else "Recall"): f"{meta['rappel']:.1%}",
-        ("Spécificité" if L == "fr" else "Specificity"): f"{meta['specificite']:.1%}",
-        ("Précision" if L == "fr" else "Precision"): f"{meta['precision']:.1%}",
-        "AUC-ROC": f"{meta['auc_roc']:.3f}",
-        "AUC-PR": f"{meta['auc_pr']:.3f}",
-        "Brier": f"{meta['brier']:.3f}",
-        ("Score composite" if L == "fr" else "Composite score"): f"{meta['score_composite']:.3f}",
-    }])
-    st.dataframe(comp_row, use_container_width=True, hide_index=True)
-    st.caption(
-        "Score composite = moyenne à poids égal des 6 métriques ci-dessus (Brier inversé). "
-        "Critère de sélection retenu parmi les 4 modèles candidats, pour ne privilégier aucune dimension."
-        if L == "fr" else
-        "Composite score = equal-weight average of the 6 metrics above (Brier inverted). "
-        "Selection criterion among the 4 candidate models, so no single dimension is favoured."
-    )
-
     seuil_expl = (
         "**Rappel sur le seuil de décision :**\n\n"
-        "- **Seuil bas (0,20–0,40)** → Plus de patients détectés (Rappel ↑), mais plus de faux positifs (Précision ↓)\n"
-        f"- **Seuil {meta['seuil_defaut']:.2f}** → Seuil optimal déterminé lors de l'entraînement du modèle\n"
-        "- **Seuil haut (0,60–0,80)** → Moins de faux positifs (Précision ↑), mais certains cas à risque manqués (Rappel ↓)\n\n"
+        "- **Seuil bas (0,20–0,40)** → Plus de patients signalés (moins de cas à risque manqués), mais plus de fausses alertes\n"
+        f"- **Seuil {meta['seuil_defaut']:.2f}** → Seuil recommandé par défaut\n"
+        "- **Seuil haut (0,60–0,80)** → Moins de fausses alertes, mais plus de cas à risque potentiellement manqués\n\n"
         "Ajustez le curseur dans la barre latérale selon la priorité clinique de votre structure."
         if L == "fr" else
         "**Decision threshold reminder:**\n\n"
-        "- **Low threshold (0.20–0.40)** → More patients detected (Recall ↑), but more false positives (Precision ↓)\n"
-        f"- **Threshold {meta['seuil_defaut']:.2f}** → Optimal threshold determined during model training\n"
-        "- **High threshold (0.60–0.80)** → Fewer false positives (Precision ↑), but some at-risk cases missed (Recall ↓)\n\n"
+        "- **Low threshold (0.20–0.40)** → More patients flagged (fewer at-risk cases missed), but more false alarms\n"
+        f"- **Threshold {meta['seuil_defaut']:.2f}** → Recommended default threshold\n"
+        "- **High threshold (0.60–0.80)** → Fewer false alarms, but more at-risk cases potentially missed\n\n"
         "Adjust the slider in the sidebar according to your facility's clinical priority."
     )
     st.info(seuil_expl)
@@ -1555,6 +1521,6 @@ The {MODEL_NAME} model was trained with Class Weight (class rebalancing without 
 # PIED DE PAGE
 # ─────────────────────────────────────────────────────────────────────────────
 st.markdown(
-    f'<div class="footer">{t("footer").format(algo=MODEL_NAME, rappel=rappel_fmt, auc=auc_fmt, n_train=meta["n_train"], n_test=meta["n_test"])}</div>',
+    f'<div class="footer">{t("footer")}</div>',
     unsafe_allow_html=True,
 )

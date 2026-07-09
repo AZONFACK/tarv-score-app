@@ -133,6 +133,8 @@ def main():
         {"C": [0.001, 0.01, 0.05, 0.1, 0.5, 1.0, 5.0, 10.0]},
         n_iter=8, cv=CV, scoring="f1", random_state=SEED, n_jobs=-1)
     lr_s.fit(X_tr_sc, y_train)
+    lr_cal = CalibratedClassifierCV(lr_s.best_estimator_, cv=5, method="isotonic")
+    lr_cal.fit(X_tr_sc, y_train)
     print(f"   CV F1 = {lr_s.best_score_:.4f} | C = {lr_s.best_params_['C']}")
 
     print("-> Random Forest...")
@@ -143,6 +145,8 @@ def main():
          "max_features": ["sqrt", "log2"]},
         n_iter=25, cv=CV, scoring="f1", random_state=SEED, n_jobs=-1)
     rf_s.fit(X_tr_sc, y_train)
+    rf_cal = CalibratedClassifierCV(rf_s.best_estimator_, cv=5, method="isotonic")
+    rf_cal.fit(X_tr_sc, y_train)
     print(f"   CV F1 = {rf_s.best_score_:.4f}")
 
     print("-> SVM lineaire...")
@@ -151,7 +155,7 @@ def main():
         {"C": [0.001, 0.01, 0.05, 0.1, 0.5, 1.0, 5.0]},
         n_iter=7, cv=CV, scoring="f1", random_state=SEED, n_jobs=-1)
     svm_s.fit(X_tr_sc, y_train)
-    svm_cal = CalibratedClassifierCV(svm_s.best_estimator_, cv=5)
+    svm_cal = CalibratedClassifierCV(svm_s.best_estimator_, cv=5, method="isotonic")
     svm_cal.fit(X_tr_sc, y_train)
     print(f"   CV F1 = {svm_s.best_score_:.4f}")
 
@@ -164,13 +168,19 @@ def main():
          "min_child_weight": [3, 5, 7], "reg_alpha": [0.1, 1.0], "reg_lambda": [1.0, 2.0, 5.0]},
         n_iter=25, cv=CV, scoring="f1", random_state=SEED, n_jobs=-1)
     xgb_s.fit(X_tr_sc, y_train)
+    xgb_cal = CalibratedClassifierCV(xgb_s.best_estimator_, cv=5, method="isotonic")
+    xgb_cal.fit(X_tr_sc, y_train)
     print(f"   CV F1 = {xgb_s.best_score_:.4f}")
 
+    # Tous les candidats sont calibrés (isotonic, cv=5) avant comparaison : un
+    # score de Brier/composite bas ne garantit pas une bonne calibration par
+    # tranche de risque (cf. vérification ECE plus bas), donc on ne compare
+    # et ne déploie que des probabilités déjà post-calibrées.
     best_models = {
-        "Rég. Logistique": lr_s.best_estimator_,
-        "Random Forest":   rf_s.best_estimator_,
+        "Rég. Logistique": lr_cal,
+        "Random Forest":   rf_cal,
         "SVM linéaire":    svm_cal,
-        "XGBoost":         xgb_s.best_estimator_,
+        "XGBoost":         xgb_cal,
     }
 
     print("\n" + "=" * 70)
@@ -179,8 +189,10 @@ def main():
 
     seuils_optimaux = {}
     resultats = []
+    probs_par_modele = {}
     for nom, model in best_models.items():
         probs = model.predict_proba(X_te_sc)[:, 1]
+        probs_par_modele[nom] = probs
 
         meilleur_f1, meilleur_seuil = 0, 0.50
         for s in np.arange(0.20, 0.65, 0.01):
@@ -231,6 +243,34 @@ def main():
     print(f"\n*** MODELE RETENU (meilleur Score composite, 6 métriques à poids égal) : {best_nom} ***")
 
     print("\n" + "=" * 70)
+    print("ETAPE 3bis : VERIFICATION DE LA CALIBRATION (modèle retenu)")
+    print("=" * 70)
+
+    from sklearn.calibration import calibration_curve
+    probs_best = probs_par_modele[best_nom]
+    frac_obs, frac_pred = calibration_curve(y_test, probs_best, n_bins=10, strategy="quantile")
+    # ECE (Expected Calibration Error) : écart moyen, pondéré par la taille de
+    # chaque tranche, entre la probabilité annoncée et la fréquence réellement
+    # observée. Un score de Brier bas ne suffit pas à garantir une bonne
+    # calibration par tranche de risque (Faible/Modéré/Élevé) : c'est cette
+    # vérification qui le confirme réellement.
+    bin_edges = np.quantile(probs_best, np.linspace(0, 1, 11))
+    bin_ids = np.clip(np.digitize(probs_best, bin_edges[1:-1]), 0, len(frac_obs) - 1)
+    poids = np.array([np.sum(bin_ids == i) for i in range(len(frac_obs))]) / len(probs_best)
+    ece = float(np.sum(poids * np.abs(frac_obs - frac_pred)))
+
+    df_calib = pd.DataFrame({
+        "Probabilité moyenne prédite": frac_pred,
+        "Fréquence réelle observée": frac_obs,
+        "Écart absolu": np.abs(frac_obs - frac_pred),
+    })
+    print(df_calib.round(4).to_string(index=False))
+    print(f"\nECE (Expected Calibration Error) = {ece:.4f}  "
+          f"({'bien calibré' if ece < 0.05 else 'calibration a surveiller'} si < 0.05)")
+    print(f"Brier du modèle retenu = {float(best_row['Brier']):.4f} (mesure globale ; l'ECE ci-dessus vérifie "
+          f"la calibration tranche par tranche, ce que le Brier seul ne garantit pas)")
+
+    print("\n" + "=" * 70)
     print("ETAPE 4 : SAUVEGARDE DES ARTEFACTS POUR L'APPLICATION")
     print("=" * 70)
 
@@ -261,6 +301,7 @@ def main():
         "auc_roc": float(best_row["AUC-ROC"]),
         "auc_pr": float(best_row["AUC-PR"]),
         "brier": float(best_row["Brier"]),
+        "ece": ece,
         "score_composite": float(best_row["Score composite"]),
         "n_train": int(len(X_train)),
         "n_test": int(len(X_test)),
@@ -272,11 +313,13 @@ def main():
     with open(CHEMIN_MODELES / "meta.json", "w", encoding="utf-8") as f:
         json.dump(meta, f, indent=2, ensure_ascii=False)
 
-    df_res.to_excel(CHEMIN_MODELES / "performances_modeles.xlsx", index=False)
+    with pd.ExcelWriter(CHEMIN_MODELES / "performances_modeles.xlsx") as writer:
+        df_res.to_excel(writer, sheet_name="Comparaison modeles", index=False)
+        df_calib.to_excel(writer, sheet_name="Calibration", index=False)
 
     print(f"  ✓ modele_final.pkl ({best_nom})")
     print("  ✓ scaler.pkl, colonnes_modele.pkl, references.pkl, variables_modele.pkl")
-    print("  ✓ seuil_optimal.pkl, meta.json, performances_modeles.xlsx")
+    print("  ✓ seuil_optimal.pkl, meta.json, performances_modeles.xlsx (comparaison + calibration)")
     print("\nTerminé.")
 
 
