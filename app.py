@@ -395,7 +395,7 @@ with st.sidebar:
                 unsafe_allow_html=True)
     for emoji, key_lbl, key_desc, border_col, bg_col, txt_col in [
         ("🟢", "risk_low",  "risk_low_desc",  "#27ae60", "rgba(39,174,96,0.18)",  "#90ffb0"),
-        ("🟠", "risk_mod",  "risk_mod_desc",  "#f39c12", "rgba(243,156,18,0.18)", "#ffd580"),
+        ("🟡", "risk_mod",  "risk_mod_desc",  "#f1c40f", "rgba(241,196,15,0.18)", "#fff176"),
         ("🔴", "risk_high", "risk_high_desc", "#e74c3c", "rgba(231,76,60,0.18)",  "#ffaaaa"),
     ]:
         st.markdown(
@@ -508,7 +508,7 @@ def svg_gauge(prob: float, color: str) -> str:
     d_n = 180 - prob * 180    # aiguille
 
     arcs = (ring(180, d_g, "#d5f5e3", "#27ae60")
-          + ring(d_g, d_o,  "#fef3e2", "#f39c12")
+          + ring(d_g, d_o,  "#fdf6d3", "#f1c40f")
           + ring(d_o, 0,    "#fadbd8", "#e74c3c"))
 
     ticks = ""
@@ -524,7 +524,7 @@ def svg_gauge(prob: float, color: str) -> str:
                 f'fill="{col}" text-anchor="middle">{txt}</text>')
 
     labels = (zone_label(153, t("risk_low"),  "#27ae60")
-            + zone_label(108, t("risk_mod"),  "#d68910")
+            + zone_label(108, t("risk_mod"),  "#b7950b")
             + zone_label(45,  t("risk_high"), "#e74c3c"))
 
     tick_labels = ""
@@ -662,8 +662,8 @@ def generate_pdf(patient_vals: list, prob: float, niveau: str,
         r, g, b       = 39, 174, 96
         bg_r, bg_g, bg_b = 213, 245, 227
     elif prob < 0.50:
-        r, g, b       = 230, 126, 34
-        bg_r, bg_g, bg_b = 254, 243, 226
+        r, g, b       = 183, 149, 11
+        bg_r, bg_g, bg_b = 255, 251, 230
     else:
         r, g, b       = 231, 76, 60
         bg_r, bg_g, bg_b = 253, 237, 236
@@ -935,7 +935,7 @@ def draw_dashboard(df_res: pd.DataFrame, lang: str) -> plt.Figure:
     """Répartition des niveaux de risque et taux de risque élevé par variable clé."""
     niveau_order = ["Faible / Low", "Modéré / Moderate", "Élevé / High"]
     niveau_lbl   = {"fr": ["Faible", "Modéré", "Élevé"], "en": ["Low", "Moderate", "High"]}
-    colors_risk  = ["#27ae60", "#f39c12", "#e74c3c"]
+    colors_risk  = ["#27ae60", "#f1c40f", "#e74c3c"]
 
     fig, axes = plt.subplots(2, 2, figsize=(11, 7.5))
     fig.patch.set_facecolor("#ffffff")
@@ -1025,8 +1025,8 @@ def generate_batch_pdf(df_res: pd.DataFrame, cnls_path: Path, issea_path: Path) 
             pdf.set_fill_color(253, 237, 236)
             pdf.set_text_color(180, 40, 30)
         elif niv.startswith("Mod"):
-            pdf.set_fill_color(254, 243, 226)
-            pdf.set_text_color(160, 80, 10)
+            pdf.set_fill_color(255, 251, 230)
+            pdf.set_text_color(140, 115, 9)
         else:
             pdf.set_fill_color(213, 245, 227) if i % 2 == 0 else pdf.set_fill_color(240, 255, 245)
             pdf.set_text_color(30, 100, 60)
@@ -1149,10 +1149,10 @@ with tab1:
             bg_reco, bd_reco, tc = "#eafaf1", "#27ae60", "#1e5f3a"
             reco = t("reco_low")
         elif prob < SEUIL:
-            niveau, color        = t("risk_mod_lbl"),  "#e67e22"
-            emoji_r              = "🟠"
-            bg_card, bd_card     = "#fef5e7", "#f39c12"
-            bg_reco, bd_reco, tc = "#fef9e7", "#f39c12", "#784212"
+            niveau, color        = t("risk_mod_lbl"),  "#b7950b"
+            emoji_r              = "🟡"
+            bg_card, bd_card     = "#fffbe6", "#f1c40f"
+            bg_reco, bd_reco, tc = "#fffbe6", "#f1c40f", "#7a6200"
             reco = t("reco_mod")
         else:
             niveau, color        = t("risk_high_lbl"), "#e74c3c"
@@ -1350,7 +1350,7 @@ with tab2:
                         if niv.startswith("El"):
                             return ["background-color:#fdedec"] * len(row)
                         elif niv.startswith("Mod"):
-                            return ["background-color:#fef9e7"] * len(row)
+                            return ["background-color:#fffbe6"] * len(row)
                         else:
                             return ["background-color:#eafaf1"] * len(row)
 
@@ -1367,7 +1367,7 @@ with tab2:
                     c1, c2, c3, c4 = st.columns(4)
                     c1.metric("Total", n_tot)
                     c2.metric("🟢 Faible / Low",   n_low)
-                    c3.metric("🟠 Modéré / Mod",   n_mod)
+                    c3.metric("🟡 Modéré / Mod",   n_mod)
                     c4.metric("🔴 Élevé / High",   n_high)
 
                     st.markdown("<br>", unsafe_allow_html=True)
