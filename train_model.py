@@ -1,14 +1,16 @@
 # =============================================================================
-# TARV-Score — Entraînement du modèle de production (10 variables)
+# TARV-Score — Entraînement du modèle de production (12 variables)
 # Script autonome et reproductible : sélectionne le meilleur des 4 candidats
-# (Rég. Logistique, Random Forest, SVM linéaire, XGBoost) sur les 10 variables
-# les plus explicatives de l'interruption au TARV, et exporte les artefacts
-# nécessaires à l'application Streamlit (app.py) dans ./modeles/.
+# (Rég. Logistique, Random Forest, SVM linéaire, XGBoost) sur les 12 variables
+# retenues pour l'application, et exporte les artefacts nécessaires à
+# l'application Streamlit (app.py) dans ./modeles/.
 #
-# Sélection des 10 variables : analyse combinée Chi²/V de Cramér + test de
-# Wald joint (régression logistique multivariée) + importances agrégées
-# Random Forest & XGBoost, calculée sur Base_Traitee.xlsx et les modèles
-# à 21 variables du notebook analyse_TARV_v5_FINAL_8.ipynb.
+# Sélection des variables : 8 choisies par analyse combinée Chi²/V de Cramér +
+# test de Wald joint (régression logistique multivariée) + importances
+# agrégées Random Forest & XGBoost (calculée sur Base_Traitee.xlsx et les
+# modèles à 21 variables du notebook analyse_TARV_v5_FINAL_8.ipynb), et
+# 4 variables protégées par la littérature (Sexe, Tranche_Age,
+# Statut_Matrimonial, Soutien_PEPFAR) — cf. Étape 12 du notebook.
 # =============================================================================
 import io
 import json
@@ -34,18 +36,21 @@ CHEMIN_MODELES = BASE / "modeles"
 CHEMIN_MODELES.mkdir(parents=True, exist_ok=True)
 
 VARS_FIN = [
-    "Observance_4j", "Region", "Religion", "Depenses_Mensuelles", "DSD_Recode",
-    "Revenu", "Delai_Attente_Cat", "Niveau_Etude", "Retesting", "Type_FOSA",
+    "Sexe", "Tranche_Age", "Statut_Matrimonial", "Soutien_PEPFAR",
+    "Observance_4j", "Region", "Religion", "Depenses_Mensuelles",
+    "DSD_Recode", "Niveau_Etude", "Retesting", "Type_FOSA",
 ]
 
 REFERENCES = {
+    "Sexe":                 "Féminin",
+    "Tranche_Age":          "25 à 49 Ans",
+    "Statut_Matrimonial":   "Marié(e) en monogamie",
+    "Soutien_PEPFAR":       "Oui",
     "Observance_4j":        "Bonne",
     "Region":               "Centre",
     "Religion":             "Catholique",
     "Depenses_Mensuelles":  "Moins de 5 000",
     "DSD_Recode":           "Standard",
-    "Revenu":               "Moins de 10 000",
-    "Delai_Attente_Cat":    "≤15 min",
     "Niveau_Etude":         "Jamais fréquenté",
     "Retesting":            "Non",
     "Type_FOSA":            "Public",

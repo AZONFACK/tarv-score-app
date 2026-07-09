@@ -3,7 +3,7 @@
 # Mémoire ISE3 | ISSEA-CEMAC 2025-2026 | CNLS / GTC / Cameroun
 # Auteur : AZONFACK MYRIAM DOLVIANNE
 # Modèle : meilleur des 4 candidats (Rég. Logistique / Random Forest / SVM /
-#          XGBoost), entraîné en Class Weight sur les 10 variables les plus
+#          XGBoost), entraîné en Class Weight sur les 12 variables les plus
 #          explicatives de l'interruption au TARV (cf. train_model.py).
 # =============================================================================
 
@@ -64,10 +64,12 @@ T = {
     "ctx_body":      {
         "fr": ("Données CNLS 2024 · Enquête nationale auprès de **2 720 PvVIH** dans les 10 régions du Cameroun.\n\n"
                "Modèle retenu parmi 4 candidats comparés (Régression Logistique, Random Forest, SVM, XGBoost) "
-               "sur les **10 variables** les plus associées statistiquement à l'interruption du TARV."),
+               "sur **12 variables** : 8 sélectionnées statistiquement et 4 protégées par la littérature "
+               "(Sexe, Âge, Statut matrimonial, Soutien PEPFAR)."),
         "en": ("CNLS 2024 data · National survey of **2,720 PLHIV** across Cameroon's 10 regions.\n\n"
                "Model selected among 4 compared candidates (Logistic Regression, Random Forest, SVM, XGBoost) "
-               "on the **10 variables** most statistically associated with ART interruption."),
+               "on **12 variables**: 8 statistically selected and 4 protected by the literature "
+               "(Sex, Age, Marital status, PEPFAR support)."),
     },
     "disclaimer":    {
         "fr": "⚠️ Outil d'aide à la décision.<br>Ne remplace pas le jugement clinique.",
@@ -89,8 +91,8 @@ T = {
 
     # ── Formulaire ───────────────────────────────────────────────────────────
     "form_intro":    {
-        "fr": "📋 Profil du patient — 10 variables du modèle {}",
-        "en": "📋 Patient Profile — 10 variables of the {} model",
+        "fr": "📋 Profil du patient — 12 variables du modèle {}",
+        "en": "📋 Patient Profile — 12 variables of the {} model",
     },
     "form_sub":      {
         "fr": "Renseignez toutes les caractéristiques, puis cliquez sur <strong>Calculer le Score</strong>.",
@@ -108,20 +110,23 @@ T = {
     "type_fosa":     {"fr": "Type de FOSA",          "en": "Health Facility Type"},
     "dsd":           {"fr": "Mode de dispensation (DSD)",
                       "en": "Dispensation Mode (DSD)"},
-    "delai":         {"fr": "Délai d'attente à la FOSA",
-                      "en": "Waiting Time at Facility"},
+    "pepfar":        {"fr": "Soutien PEPFAR",        "en": "PEPFAR Support"},
     "observance":    {"fr": "Observance (4 derniers jours)",
                       "en": "Adherence (last 4 days)"},
     "retesting":     {"fr": "Nouveau dépistage VIH (retesting)",
                       "en": "HIV Retesting"},
+    "sexe":          {"fr": "Sexe",                  "en": "Sex"},
+    "tranche_age":   {"fr": "Tranche d'âge",         "en": "Age Group"},
+    "statut_mat":    {"fr": "Statut matrimonial",    "en": "Marital Status"},
     "religion":      {"fr": "Religion",              "en": "Religion"},
     "niveau_etude":  {"fr": "Niveau d'étude",        "en": "Education Level"},
-    "revenu":        {"fr": "Revenu mensuel",        "en": "Monthly Income"},
     "depenses":      {"fr": "Dépenses mensuelles liées au traitement",
                       "en": "Monthly Treatment-related Expenses"},
 
     "oui":           {"fr": "Oui",                   "en": "Yes"},
     "non":           {"fr": "Non",                   "en": "No"},
+    "masculin":      {"fr": "Masculin",              "en": "Male"},
+    "feminin":       {"fr": "Féminin",               "en": "Female"},
 
     "btn_calc":      {"fr": "🔍  Calculer le Score de Risque",
                       "en": "🔍  Calculate Risk Score"},
@@ -208,10 +213,6 @@ T = {
         "fr": ["Standard","DSD avec décalage RDV","DSD sans décalage"],
         "en": ["Standard","DSD with appointment delay","DSD without delay"],
     },
-    "delai_opts": {
-        "fr": ["≤15 min","16-30 min","31-60 min",">60 min","Non renseigné"],
-        "en": ["≤15 min","16-30 min","31-60 min",">60 min","Not specified"],
-    },
     "observance_opts": {
         "fr": ["Bonne","Modérée","Médiocre"],
         "en": ["Good","Moderate","Poor"],
@@ -226,15 +227,19 @@ T = {
         "en": ["Primary","Never attended school","Lower Secondary",
                "Upper Secondary","Higher Education"],
     },
-    "revenu_opts": {
-        "fr": ["Moins de 10 000","[10 000 - 50 000[","[50 000 - 100 000[",
-               "[100 000 - 200 000[","200 000 et plus"],
-        "en": ["Under 10,000 FCFA","10,000-50,000 FCFA","50,000-100,000 FCFA",
-               "100,000-200,000 FCFA","200,000 FCFA and above"],
-    },
     "depenses_opts": {
         "fr": ["Moins de 5 000","[5 000 - 10 000[","[10 000 - 25 000[","25 000 et plus"],
         "en": ["Under 5,000 FCFA","5,000-10,000 FCFA","10,000-25,000 FCFA","25,000 FCFA and above"],
+    },
+    "tranche_age_opts": {
+        "fr": ["25 à 49 Ans","18 à 20 Ans","21 à 24 Ans","50 ans et plus"],
+        "en": ["25 to 49 years","18 to 20 years","21 to 24 years","50 years and above"],
+    },
+    "statut_mat_opts": {
+        "fr": ["Marié(e) en monogamie","Célibataire","En union libre/concubinage",
+               "Marié(e) en polygamie","En séparation de corps / Divorcée","Veuf (ve)"],
+        "en": ["Married (monogamous)","Single","Cohabiting/Common-law",
+               "Married (polygamous)","Separated / Divorced","Widowed"],
     },
 }
 
@@ -471,10 +476,10 @@ OBSERVANCE_INTERNAL = {
 REGION_EN2FR   = dict(zip(T["region_opts"]["en"],       T["region_opts"]["fr"]))
 ETUDE_EN2FR    = dict(zip(T["niveau_etude_opts"]["en"], T["niveau_etude_opts"]["fr"]))
 DSD_EN2FR      = dict(zip(T["dsd_opts"]["en"],          T["dsd_opts"]["fr"]))
-DELAI_EN2FR    = dict(zip(T["delai_opts"]["en"],        T["delai_opts"]["fr"]))
 RELIGION_EN2FR = dict(zip(T["religion_opts"]["en"],     T["religion_opts"]["fr"]))
-REVENU_EN2FR   = dict(zip(T["revenu_opts"]["en"],       T["revenu_opts"]["fr"]))
 DEPENSES_EN2FR = dict(zip(T["depenses_opts"]["en"],     T["depenses_opts"]["fr"]))
+TRANCHE_EN2FR  = dict(zip(T["tranche_age_opts"]["en"],  T["tranche_age_opts"]["fr"]))
+STATUT_EN2FR   = dict(zip(T["statut_mat_opts"]["en"],   T["statut_mat_opts"]["fr"]))
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -568,15 +573,18 @@ VARIABLE_LABELS = {
     "Religion":              {"fr": "Religion",                    "en": "Religion"},
     "Depenses_Mensuelles":  {"fr": "Dépenses mensuelles",          "en": "Monthly expenses"},
     "DSD_Recode":           {"fr": "Mode de dispensation",         "en": "Dispensation mode"},
-    "Revenu":               {"fr": "Revenu mensuel",               "en": "Monthly income"},
-    "Delai_Attente_Cat":    {"fr": "Délai d'attente",              "en": "Waiting time"},
     "Niveau_Etude":         {"fr": "Niveau d'étude",                "en": "Education level"},
     "Retesting":            {"fr": "Retesting VIH",                "en": "HIV retesting"},
     "Type_FOSA":            {"fr": "Type de FOSA",                 "en": "Facility type"},
+    "Sexe":                 {"fr": "Sexe",                         "en": "Sex"},
+    "Tranche_Age":          {"fr": "Tranche d'âge",                "en": "Age group"},
+    "Statut_Matrimonial":   {"fr": "Statut matrimonial",           "en": "Marital status"},
+    "Soutien_PEPFAR":       {"fr": "Soutien PEPFAR",               "en": "PEPFAR support"},
 }
 MODALITY_EN = {
     "Oui": "Yes", "Non renseigné": "Not specified", "Mediocre": "Poor",
     "Modérée": "Moderate", "Standard": "Standard", "Public": "Public",
+    "Masculin": "Male",
 }
 
 
@@ -733,12 +741,12 @@ def generate_pdf(patient_vals: list, prob: float, niveau: str,
     pdf.cell(105, 7, safe('Valeur' if lang == 'fr' else 'Value'), border=1, fill=True, align='C', ln=True)
 
     var_labels = {
-        'fr': ['Region', 'Type de FOSA', 'Mode DSD', "Delai d'attente",
-               'Observance (4 jours)', 'Retesting VIH', 'Religion',
-               "Niveau d'etude", 'Revenu mensuel', 'Depenses mensuelles'],
-        'en': ['Region', 'Health Facility Type', 'DSD Mode', 'Waiting Time',
-               'Adherence (4 days)', 'HIV Retesting', 'Religion',
-               'Education Level', 'Monthly Income', 'Monthly Expenses'],
+        'fr': ['Region', 'Type de FOSA', 'Mode DSD', 'Soutien PEPFAR',
+               'Observance (4 jours)', 'Retesting VIH', 'Sexe', "Tranche d'age",
+               'Statut matrimonial', 'Religion', "Niveau d'etude", 'Depenses mensuelles'],
+        'en': ['Region', 'Health Facility Type', 'DSD Mode', 'PEPFAR Support',
+               'Adherence (4 days)', 'HIV Retesting', 'Sex', 'Age Group',
+               'Marital Status', 'Religion', 'Education Level', 'Monthly Expenses'],
     }
     pdf.set_line_width(0.3)
     for i, (var, val) in enumerate(zip(var_labels[lang], patient_vals)):
@@ -778,21 +786,23 @@ def generate_pdf(patient_vals: list, prob: float, niveau: str,
 # FONCTIONS IMPORT BATCH
 # ─────────────────────────────────────────────────────────────────────────────
 COLS_REQUIS = [
-    "Region", "Type_FOSA", "DSD_Recode", "Delai_Attente_Cat",
-    "Observance_4j", "Retesting", "Religion", "Niveau_Etude",
-    "Revenu", "Depenses_Mensuelles",
+    "Region", "Type_FOSA", "DSD_Recode", "Soutien_PEPFAR",
+    "Observance_4j", "Retesting", "Sexe", "Tranche_Age",
+    "Statut_Matrimonial", "Religion", "Niveau_Etude", "Depenses_Mensuelles",
 ]
 
 VALEURS_VALIDES = {
     "Region":              T["region_opts"]["fr"],
     "Type_FOSA":           T["type_fosa_opts"]["fr"],
     "DSD_Recode":          T["dsd_opts"]["fr"],
-    "Delai_Attente_Cat":   T["delai_opts"]["fr"],
+    "Soutien_PEPFAR":      ["Oui", "Non"],
     "Observance_4j":       T["observance_opts"]["fr"],
     "Retesting":           ["Oui", "Non"],
+    "Sexe":                ["Féminin", "Masculin"],
+    "Tranche_Age":         T["tranche_age_opts"]["fr"],
+    "Statut_Matrimonial":  T["statut_mat_opts"]["fr"],
     "Religion":            T["religion_opts"]["fr"],
     "Niveau_Etude":        T["niveau_etude_opts"]["fr"],
-    "Revenu":              T["revenu_opts"]["fr"],
     "Depenses_Mensuelles": T["depenses_opts"]["fr"],
 }
 
@@ -823,9 +833,10 @@ def generate_template() -> bytes:
         cell.border = cell_border
         ws.column_dimensions[get_column_letter(c)].width = 22
 
-    exemple = ["P001", "Centre", "Public", "Standard", "≤15 min",
-               "Bonne", "Non", "Catholique", "Jamais fréquenté",
-               "Moins de 10 000", "Moins de 5 000"]
+    exemple = ["P001", "Centre", "Public", "Standard", "Oui",
+               "Bonne", "Non", "Féminin", "25 à 49 Ans",
+               "Marié(e) en monogamie", "Catholique", "Jamais fréquenté",
+               "Moins de 5 000"]
     for c, val in enumerate(exemple, 1):
         cell = ws.cell(row=2, column=c, value=val)
         cell.fill = PatternFill("solid", fgColor="EEF5FF")
@@ -878,12 +889,14 @@ def score_dataframe(df: pd.DataFrame) -> pd.DataFrame:
                 "Region":              str(row.get("Region", "")).strip(),
                 "Type_FOSA":           normalize_fosa(row.get("Type_FOSA", "")),
                 "DSD_Recode":          str(row.get("DSD_Recode", "")).strip(),
-                "Delai_Attente_Cat":   str(row.get("Delai_Attente_Cat", "")).strip(),
+                "Soutien_PEPFAR":      str(row.get("Soutien_PEPFAR", "")).strip(),
                 "Observance_4j":       normalize_observance(row.get("Observance_4j", "")),
                 "Retesting":           str(row.get("Retesting", "")).strip(),
+                "Sexe":                str(row.get("Sexe", "")).strip(),
+                "Tranche_Age":         str(row.get("Tranche_Age", "")).strip(),
+                "Statut_Matrimonial":  str(row.get("Statut_Matrimonial", "")).strip(),
                 "Religion":            str(row.get("Religion", "")).strip(),
                 "Niveau_Etude":        str(row.get("Niveau_Etude", "")).strip(),
-                "Revenu":              str(row.get("Revenu", "")).strip(),
                 "Depenses_Mensuelles": str(row.get("Depenses_Mensuelles", "")).strip(),
             }
             prob = predict(raw)
@@ -1000,7 +1013,7 @@ with tab1:
             region    = st.selectbox(t("region"),    T["region_opts"][L],    key=f"{L}_region")
             type_fosa = st.selectbox(t("type_fosa"), T["type_fosa_opts"][L], key=f"{L}_fosa")
             dsd       = st.selectbox(t("dsd"),       T["dsd_opts"][L],       key=f"{L}_dsd")
-            delai     = st.selectbox(t("delai"),     T["delai_opts"][L],     key=f"{L}_delai")
+            pepfar    = st.radio(t("pepfar"), [t("non"), t("oui")], horizontal=True, key=f"{L}_pepfar")
 
         with col2:
             st.markdown(
@@ -1010,6 +1023,8 @@ with tab1:
                 f'{t("sec_thera")}</div>', unsafe_allow_html=True)
             observance = st.selectbox(t("observance"), T["observance_opts"][L], key=f"{L}_observance")
             retesting  = st.radio(t("retesting"), [t("non"), t("oui")], horizontal=True, key=f"{L}_retesting")
+            sexe       = st.radio(t("sexe"), [t("feminin"), t("masculin")], horizontal=True, key=f"{L}_sexe")
+            tranche_age = st.selectbox(t("tranche_age"), T["tranche_age_opts"][L], key=f"{L}_age")
 
         with col3:
             st.markdown(
@@ -1017,9 +1032,9 @@ with tab1:
                 f'text-transform:uppercase;letter-spacing:1px;padding:8px 0 6px 0;'
                 f'border-bottom:2px solid #e8d5f5;margin-bottom:12px;">'
                 f'{t("sec_socio")}</div>', unsafe_allow_html=True)
+            statut_mat   = st.selectbox(t("statut_mat"),   T["statut_mat_opts"][L],   key=f"{L}_statut")
             religion     = st.selectbox(t("religion"),     T["religion_opts"][L],     key=f"{L}_religion")
             niveau_etude = st.selectbox(t("niveau_etude"), T["niveau_etude_opts"][L], key=f"{L}_etude")
-            revenu       = st.selectbox(t("revenu"),       T["revenu_opts"][L],       key=f"{L}_revenu")
             depenses     = st.selectbox(t("depenses"),     T["depenses_opts"][L],     key=f"{L}_depenses")
 
         st.markdown("<br>", unsafe_allow_html=True)
@@ -1032,24 +1047,28 @@ with tab1:
         region_fr    = REGION_EN2FR.get(region, region)          if L == "en" else region
         type_fosa_fr = FOSA_INTERNAL[type_fosa]
         dsd_fr       = DSD_EN2FR.get(dsd, dsd)                    if L == "en" else dsd
-        delai_fr     = DELAI_EN2FR.get(delai, delai)              if L == "en" else delai
+        pepfar_fr    = "Oui" if pepfar == t("oui") else "Non"
         observ_fr    = OBSERVANCE_INTERNAL[observance]
         retesting_fr = "Oui" if retesting == t("oui") else "Non"
+        sexe_fr      = "Masculin" if sexe == t("masculin") else "Féminin"
+        tranche_fr   = TRANCHE_EN2FR.get(tranche_age, tranche_age) if L == "en" else tranche_age
+        statut_fr    = STATUT_EN2FR.get(statut_mat, statut_mat)   if L == "en" else statut_mat
         religion_fr  = RELIGION_EN2FR.get(religion, religion)     if L == "en" else religion
         etude_fr     = ETUDE_EN2FR.get(niveau_etude, niveau_etude) if L == "en" else niveau_etude
-        revenu_fr    = REVENU_EN2FR.get(revenu, revenu)           if L == "en" else revenu
         depenses_fr  = DEPENSES_EN2FR.get(depenses, depenses)     if L == "en" else depenses
 
         raw_fr = {
             "Region":              region_fr,
             "Type_FOSA":           type_fosa_fr,
             "DSD_Recode":          dsd_fr,
-            "Delai_Attente_Cat":   delai_fr,
+            "Soutien_PEPFAR":      pepfar_fr,
             "Observance_4j":       observ_fr,
             "Retesting":           retesting_fr,
+            "Sexe":                sexe_fr,
+            "Tranche_Age":         tranche_fr,
+            "Statut_Matrimonial":  statut_fr,
             "Religion":            religion_fr,
             "Niveau_Etude":        etude_fr,
-            "Revenu":              revenu_fr,
             "Depenses_Mensuelles": depenses_fr,
         }
 
@@ -1126,18 +1145,18 @@ with tab1:
 
             with st.expander(t("recap_title")):
                 var_labels = {
-                    "fr": ["Région","Type de FOSA","Mode DSD","Délai d'attente",
-                           "Observance (4j)","Retesting VIH","Religion",
-                           "Niveau d'étude","Revenu mensuel","Dépenses mensuelles"],
-                    "en": ["Region","Health Facility Type","DSD Mode","Waiting Time",
-                           "Adherence (4 days)","HIV Retesting","Religion",
-                           "Education Level","Monthly Income","Monthly Expenses"],
+                    "fr": ["Région","Type de FOSA","Mode DSD","Soutien PEPFAR",
+                           "Observance (4j)","Retesting VIH","Sexe","Tranche d'âge",
+                           "Statut matrimonial","Religion","Niveau d'étude","Dépenses mensuelles"],
+                    "en": ["Region","Health Facility Type","DSD Mode","PEPFAR Support",
+                           "Adherence (4 days)","HIV Retesting","Sex","Age Group",
+                           "Marital Status","Religion","Education Level","Monthly Expenses"],
                 }
                 recap = pd.DataFrame({
                     t("recap_var"): var_labels[L],
-                    t("recap_val"): [region, type_fosa, dsd, delai,
-                                     observance, retesting, religion,
-                                     niveau_etude, revenu, depenses],
+                    t("recap_val"): [region, type_fosa, dsd, pepfar,
+                                     observance, retesting, sexe, tranche_age,
+                                     statut_mat, religion, niveau_etude, depenses],
                 })
                 st.dataframe(recap, use_container_width=True, hide_index=True)
 
@@ -1151,8 +1170,8 @@ with tab1:
             f'</div></div>',
             unsafe_allow_html=True,
         )
-        patient_vals = [region, type_fosa, dsd, delai, observance,
-                        retesting, religion, niveau_etude, revenu, depenses]
+        patient_vals = [region, type_fosa, dsd, pepfar, observance, retesting,
+                        sexe, tranche_age, statut_mat, religion, niveau_etude, depenses]
         try:
             pdf_bytes = generate_pdf(
                 patient_vals=patient_vals,
@@ -1378,21 +1397,25 @@ The {MODEL_NAME} model was trained with Class Weight (class rebalancing without 
             "risque_attendu_en": "Reference risk (model baseline)",
             "raw": {
                 "Region": "Centre", "Type_FOSA": "Public", "DSD_Recode": "Standard",
-                "Delai_Attente_Cat": "≤15 min", "Observance_4j": "Bonne", "Retesting": "Non",
+                "Soutien_PEPFAR": "Oui", "Observance_4j": "Bonne", "Retesting": "Non",
+                "Sexe": "Féminin", "Tranche_Age": "25 à 49 Ans",
+                "Statut_Matrimonial": "Marié(e) en monogamie",
                 "Religion": "Catholique", "Niveau_Etude": "Jamais fréquenté",
-                "Revenu": "Moins de 10 000", "Depenses_Mensuelles": "Moins de 5 000",
+                "Depenses_Mensuelles": "Moins de 5 000",
             },
         },
         {
-            "nom_fr": "Profil 2 — Observance médiocre, délai long",
-            "nom_en": "Profile 2 — Poor adherence, long waiting time",
+            "nom_fr": "Profil 2 — Observance médiocre, jeune, célibataire",
+            "nom_en": "Profile 2 — Poor adherence, young, single",
             "risque_attendu_fr": "Risque élevé attendu",
             "risque_attendu_en": "Expected high risk",
             "raw": {
                 "Region": "Extrême-Nord", "Type_FOSA": "Privé laic", "DSD_Recode": "DSD avec décalage RDV",
-                "Delai_Attente_Cat": ">60 min", "Observance_4j": "Mediocre", "Retesting": "Oui",
+                "Soutien_PEPFAR": "Non", "Observance_4j": "Mediocre", "Retesting": "Oui",
+                "Sexe": "Masculin", "Tranche_Age": "18 à 20 Ans",
+                "Statut_Matrimonial": "Célibataire",
                 "Religion": "Musulman", "Niveau_Etude": "Jamais fréquenté",
-                "Revenu": "Moins de 10 000", "Depenses_Mensuelles": "25 000 et plus",
+                "Depenses_Mensuelles": "25 000 et plus",
             },
         },
         {
@@ -1402,9 +1425,11 @@ The {MODEL_NAME} model was trained with Class Weight (class rebalancing without 
             "risque_attendu_en": "Expected moderate risk",
             "raw": {
                 "Region": "Ouest", "Type_FOSA": "Privé confessionnel", "DSD_Recode": "DSD sans décalage",
-                "Delai_Attente_Cat": "31-60 min", "Observance_4j": "Modérée", "Retesting": "Non",
+                "Soutien_PEPFAR": "Oui", "Observance_4j": "Modérée", "Retesting": "Non",
+                "Sexe": "Masculin", "Tranche_Age": "50 ans et plus",
+                "Statut_Matrimonial": "Veuf (ve)",
                 "Religion": "Protestant", "Niveau_Etude": "Secondaire Premier Cycle",
-                "Revenu": "[50 000 - 100 000[", "Depenses_Mensuelles": "[10 000 - 25 000[",
+                "Depenses_Mensuelles": "[10 000 - 25 000[",
             },
         },
         {
@@ -1414,9 +1439,11 @@ The {MODEL_NAME} model was trained with Class Weight (class rebalancing without 
             "risque_attendu_en": "Expected low risk",
             "raw": {
                 "Region": "Littoral", "Type_FOSA": "Public", "DSD_Recode": "Standard",
-                "Delai_Attente_Cat": "16-30 min", "Observance_4j": "Bonne", "Retesting": "Non",
+                "Soutien_PEPFAR": "Oui", "Observance_4j": "Bonne", "Retesting": "Non",
+                "Sexe": "Féminin", "Tranche_Age": "25 à 49 Ans",
+                "Statut_Matrimonial": "Marié(e) en monogamie",
                 "Religion": "Catholique", "Niveau_Etude": "Supérieur",
-                "Revenu": "200 000 et plus", "Depenses_Mensuelles": "Moins de 5 000",
+                "Depenses_Mensuelles": "Moins de 5 000",
             },
         },
     ]
