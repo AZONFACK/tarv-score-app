@@ -1003,7 +1003,7 @@ def generate_batch_pdf(df_res: pd.DataFrame, cnls_path: Path, issea_path: Path) 
     n_tot  = len(df_res)
     n_low  = (df_res["Niveau de risque"].str.startswith("Faible")).sum()
     n_mod  = (df_res["Niveau de risque"].str.startswith("Mod")).sum()
-    n_high = (df_res["Niveau de risque"].str.startswith("El")).sum()
+    n_high = (df_res["Niveau de risque"].str.startswith("Élevé")).sum()
     pdf.cell(0, 6, safe(f'Resume : {n_tot} patients | Faible : {n_low} | Modere : {n_mod} | Eleve : {n_high}'), ln=True)
 
     pdf.ln(2)
@@ -1023,7 +1023,7 @@ def generate_batch_pdf(df_res: pd.DataFrame, cnls_path: Path, issea_path: Path) 
     pdf.set_font('Helvetica', '', 6.5)
     for i, (_, row) in enumerate(df_res.iterrows()):
         niv = str(row.get("Niveau de risque", ""))
-        if niv.startswith("El"):
+        if niv.startswith("Élevé"):
             pdf.set_fill_color(253, 237, 236)
             pdf.set_text_color(180, 40, 30)
         elif niv.startswith("Mod"):
@@ -1401,7 +1401,7 @@ with tab2:
 
                     def color_row(row):
                         niv = str(row.get("Niveau de risque", ""))
-                        if niv.startswith("El"):
+                        if niv.startswith("Élevé"):
                             return ["background-color:#fdedec"] * len(row)
                         elif niv.startswith("Mod"):
                             return ["background-color:#fffbe6"] * len(row)
@@ -1417,7 +1417,7 @@ with tab2:
                     n_tot  = len(df_res)
                     n_low  = (df_res["Niveau de risque"].str.startswith("Faible")).sum()
                     n_mod  = (df_res["Niveau de risque"].str.startswith("Mod")).sum()
-                    n_high = (df_res["Niveau de risque"].str.startswith("El")).sum()
+                    n_high = (df_res["Niveau de risque"].str.startswith("Élevé")).sum()
                     c1, c2, c3, c4 = st.columns(4)
                     c1.metric("Total", n_tot)
                     c2.metric("🟢 Faible / Low",   n_low)
