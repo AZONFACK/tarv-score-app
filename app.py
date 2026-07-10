@@ -9,8 +9,10 @@
 # =============================================================================
 
 import base64
+import hashlib
 import json
 import math
+import secrets
 from datetime import datetime
 from pathlib import Path
 
@@ -243,6 +245,38 @@ T = {
         "en": ["Married (monogamous)","Single","Cohabiting/Common-law",
                "Married (polygamous)","Separated / Divorced","Widowed"],
     },
+
+    # ── Authentification ────────────────────────────────────────────────────
+    "login_title": {"fr": "🔒 Espace personnel de santé",
+                     "en": "🔒 Healthcare Staff Area"},
+    "login_sub":   {"fr": "Identifiez-vous pour accéder à l'outil et suivre vos patients.",
+                     "en": "Sign in to access the tool and track your patients."},
+    "login_tab":    {"fr": "Se connecter",      "en": "Log in"},
+    "register_tab": {"fr": "Créer un compte",   "en": "Create an account"},
+    "field_name":       {"fr": "Nom complet",              "en": "Full name"},
+    "field_facility":   {"fr": "Structure de santé (optionnel)",
+                          "en": "Health facility (optional)"},
+    "field_username":   {"fr": "Identifiant",               "en": "Username"},
+    "field_password":   {"fr": "Mot de passe",              "en": "Password"},
+    "field_password_confirm": {"fr": "Confirmer le mot de passe",
+                                 "en": "Confirm password"},
+    "btn_login":    {"fr": "🔑 Se connecter",   "en": "🔑 Log in"},
+    "btn_register": {"fr": "✅ Créer mon compte", "en": "✅ Create my account"},
+    "btn_logout":   {"fr": "🚪 Se déconnecter", "en": "🚪 Log out"},
+    "err_login_failed": {"fr": "Identifiant ou mot de passe incorrect.",
+                          "en": "Incorrect username or password."},
+    "err_missing_fields": {"fr": "Veuillez renseigner votre nom et un identifiant.",
+                            "en": "Please provide your name and a username."},
+    "err_user_exists": {"fr": "Cet identifiant est déjà utilisé, choisissez-en un autre.",
+                         "en": "This username is already taken, please choose another one."},
+    "err_password_short": {"fr": "Le mot de passe doit contenir au moins 6 caractères.",
+                            "en": "Password must be at least 6 characters long."},
+    "err_passwords_mismatch": {"fr": "Les deux mots de passe ne correspondent pas.",
+                                "en": "The two passwords do not match."},
+    "success_register": {"fr": "Compte créé avec succès, vous êtes connecté(e).",
+                          "en": "Account created successfully, you are now logged in."},
+    "welcome_user": {"fr": "👤 Connecté(e) en tant que",
+                      "en": "👤 Logged in as"},
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -311,6 +345,7 @@ button[kind="primary"]:hover {
 BASE    = Path(__file__).parent
 ASSETS  = BASE / "assets"
 MODELES = BASE / "modeles"
+USERS_FILE = BASE / "users.json"
 
 
 @st.cache_resource
@@ -328,6 +363,110 @@ def load_resources():
 def img_b64(path: Path) -> str:
     with open(path, "rb") as fh:
         return base64.b64encode(fh.read()).decode()
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# AUTHENTIFICATION DU PERSONNEL DE SANTÉ
+# ─────────────────────────────────────────────────────────────────────────────
+# Comptes stockés dans un fichier local (users.json, jamais en clair — mot de
+# passe hashé + sel par compte). Auto-inscription : chaque agent crée son
+# compte au premier usage. Le suivi des patients reste, lui, limité à la
+# session en cours (voir historique_individuel) : seule l'identité de
+# l'agent est persistée pour permettre de se reconnecter les fois suivantes.
+def load_users() -> dict:
+    if USERS_FILE.exists():
+        try:
+            with open(USERS_FILE, encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            return {}
+    return {}
+
+
+def save_users(users: dict) -> None:
+    with open(USERS_FILE, "w", encoding="utf-8") as f:
+        json.dump(users, f, ensure_ascii=False, indent=2)
+
+
+def hash_password(password: str, salt: str) -> str:
+    return hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"),
+                                salt.encode("utf-8"), 100_000).hex()
+
+
+def verify_password(password: str, salt: str, hash_hex: str) -> bool:
+    return hash_password(password, salt) == hash_hex
+
+
+def render_login_page() -> None:
+    st.markdown(f"""
+    <div style="max-width:520px;margin:10px auto 0 auto;">
+      <div style="background:#fff;border-radius:14px;padding:24px 30px;
+           box-shadow:0 4px 18px rgba(0,0,0,0.08);border-top:4px solid #1a5e8a;">
+        <div style="font-size:1.15em;font-weight:800;color:#0b2d52;text-align:center;">{t("login_title")}</div>
+        <div style="font-size:0.85em;color:#777;text-align:center;margin-top:4px;">{t("login_sub")}</div>
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    col_l, col_c, col_r = st.columns([1, 2, 1])
+    with col_c:
+        tab_login, tab_register = st.tabs([t("login_tab"), t("register_tab")])
+
+        with tab_login:
+            with st.form("form_login"):
+                username = st.text_input(t("field_username"), key="login_username")
+                password = st.text_input(t("field_password"), type="password", key="login_password")
+                submitted = st.form_submit_button(t("btn_login"), use_container_width=True, type="primary")
+            if submitted:
+                uname_clean = username.strip().lower()
+                users = load_users()
+                user = users.get(uname_clean)
+                if user and verify_password(password, user["salt"], user["hash"]):
+                    st.session_state["auth_user"] = {
+                        "username": uname_clean,
+                        "nom": user["nom"],
+                        "structure": user.get("structure", ""),
+                    }
+                    st.rerun()
+                else:
+                    st.error(t("err_login_failed"))
+
+        with tab_register:
+            with st.form("form_register"):
+                nom       = st.text_input(t("field_name"), key="reg_nom")
+                structure = st.text_input(t("field_facility"), key="reg_structure")
+                username_r = st.text_input(t("field_username"), key="reg_username")
+                pwd1 = st.text_input(t("field_password"), type="password", key="reg_password1")
+                pwd2 = st.text_input(t("field_password_confirm"), type="password", key="reg_password2")
+                submitted_r = st.form_submit_button(t("btn_register"), use_container_width=True, type="primary")
+            if submitted_r:
+                uname_clean = username_r.strip().lower()
+                users = load_users()
+                if not nom.strip() or not uname_clean:
+                    st.error(t("err_missing_fields"))
+                elif uname_clean in users:
+                    st.error(t("err_user_exists"))
+                elif len(pwd1) < 6:
+                    st.error(t("err_password_short"))
+                elif pwd1 != pwd2:
+                    st.error(t("err_passwords_mismatch"))
+                else:
+                    salt = secrets.token_hex(16)
+                    users[uname_clean] = {
+                        "nom": nom.strip(),
+                        "structure": structure.strip(),
+                        "salt": salt,
+                        "hash": hash_password(pwd1, salt),
+                    }
+                    save_users(users)
+                    st.session_state["auth_user"] = {
+                        "username": uname_clean,
+                        "nom": nom.strip(),
+                        "structure": structure.strip(),
+                    }
+                    st.success(t("success_register"))
+                    st.rerun()
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -368,6 +507,17 @@ with st.sidebar:
     st.markdown(f"## {t('sidebar_title')}")
     st.caption(t("sidebar_sub"))
     st.divider()
+
+    if st.session_state.get("auth_user"):
+        user = st.session_state["auth_user"]
+        st.caption(t("welcome_user"))
+        st.markdown(f"**👤 {user['nom']}**")
+        if user.get("structure"):
+            st.caption(user["structure"])
+        if st.button(t("btn_logout"), use_container_width=True, key="btn_logout_sidebar"):
+            del st.session_state["auth_user"]
+            st.rerun()
+        st.divider()
 
     st.markdown(f"### {t('perf_title')}")
     st.markdown(f'<p style="font-size:0.85em;line-height:1.5;opacity:0.9;">{t("perf_body")}</p>',
@@ -651,7 +801,8 @@ def safe(text: str) -> str:
 
 
 def generate_pdf(patient_vals: list, prob: float, niveau: str, niveau_key: str,
-                 reco: str, lang: str, cnls_path: Path, issea_path: Path) -> bytes:
+                 reco: str, lang: str, cnls_path: Path, issea_path: Path,
+                 agent_nom: str = "") -> bytes:
     """Génère une fiche PDF patient prête à imprimer.
 
     niveau_key doit valoir "low", "mod" ou "high" : la couleur doit suivre le
@@ -709,6 +860,10 @@ def generate_pdf(patient_vals: list, prob: float, niveau: str, niveau_key: str,
     pdf.set_xy(10, 50)
     date_lbl = "Date d'evaluation" if lang == 'fr' else "Evaluation date"
     pdf.cell(0, 5, safe(f'{date_lbl} : {datetime.now().strftime("%d/%m/%Y  %H:%M")}'))
+    if agent_nom:
+        pdf.set_xy(10, 55)
+        agent_lbl = "Evalue par" if lang == 'fr' else "Evaluated by"
+        pdf.cell(0, 5, safe(f'{agent_lbl} : {agent_nom}'))
 
     # ── Score de risque ───────────────────────────────────────────────────────
     pdf.set_xy(10, 60)
@@ -1085,7 +1240,8 @@ def generate_batch_pdf(df_res: pd.DataFrame, cnls_path: Path, issea_path: Path) 
 
 
 def generate_individual_pdfs_zip(df_res: pd.DataFrame, lang: str,
-                                  cnls_path: Path, issea_path: Path) -> bytes:
+                                  cnls_path: Path, issea_path: Path,
+                                  agent_nom: str = "") -> bytes:
     """Empaquette une fiche PDF individuelle (comme l'onglet Saisie individuelle)
     pour chaque patient d'un lot scoré, dans une archive ZIP."""
     import io as _io
@@ -1111,6 +1267,7 @@ def generate_individual_pdfs_zip(df_res: pd.DataFrame, lang: str,
                 pdf_bytes = generate_pdf(
                     patient_vals=patient_vals, prob=prob, niveau=niveau, niveau_key=niveau_key,
                     reco=reco, lang=lang, cnls_path=cnls_path, issea_path=issea_path,
+                    agent_nom=agent_nom,
                 )
             except Exception:
                 continue
@@ -1122,6 +1279,14 @@ def generate_individual_pdfs_zip(df_res: pd.DataFrame, lang: str,
     buf.seek(0)
     return buf.read()
 
+
+# ─────────────────────────────────────────────────────────────────────────────
+# BARRIÈRE D'AUTHENTIFICATION
+# ─────────────────────────────────────────────────────────────────────────────
+if not st.session_state.get("auth_user"):
+    render_login_page()
+    st.markdown(f'<div class="footer">{t("footer")}</div>', unsafe_allow_html=True)
+    st.stop()
 
 # ─────────────────────────────────────────────────────────────────────────────
 # ONGLETS PRINCIPAUX
@@ -1249,6 +1414,7 @@ with tab1:
         st.session_state.setdefault("historique_individuel", [])
         st.session_state["historique_individuel"].append({
             "ID_Patient": id_patient.strip() if id_patient.strip() else f"Patient_{len(st.session_state['historique_individuel']) + 1}",
+            "Agent": st.session_state["auth_user"]["nom"],
             "Date": datetime.now().strftime("%d/%m/%Y %H:%M"),
             **raw_fr,
             "Probabilité (%)": round(prob * 100, 1),
@@ -1347,6 +1513,7 @@ with tab1:
                 lang=L,
                 cnls_path=ASSETS / "cnls_logo.png",
                 issea_path=ASSETS / "issea_logo.png",
+                agent_nom=st.session_state["auth_user"]["nom"],
             )
             btn_lbl = "⬇️ Télécharger le PDF" if L == "fr" else "⬇️ Download PDF"
             st.download_button(
@@ -1472,6 +1639,7 @@ with tab2:
                 if st.button(btn_score, type="primary", use_container_width=True, key="batch_score_btn"):
                     with st.spinner("Calcul en cours…" if L == "fr" else "Computing…"):
                         df_res = score_dataframe(df_up)
+                        df_res.insert(0, "Agent", st.session_state["auth_user"]["nom"])
 
                     st.markdown("<br>", unsafe_allow_html=True)
                     st.markdown(
@@ -1576,6 +1744,7 @@ with tab2:
                                 lang=L,
                                 cnls_path=ASSETS / "cnls_logo.png",
                                 issea_path=ASSETS / "issea_logo.png",
+                                agent_nom=st.session_state["auth_user"]["nom"],
                             )
                             st.download_button(
                                 label="⬇️ Fiches PDF individuelles (ZIP)" if L == "fr" else "⬇️ Individual PDF sheets (ZIP)",
