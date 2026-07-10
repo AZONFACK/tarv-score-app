@@ -373,19 +373,13 @@ with st.sidebar:
     st.markdown(f'<p style="font-size:0.85em;line-height:1.5;opacity:0.9;">{t("perf_body")}</p>',
                 unsafe_allow_html=True)
 
+    # Seuil de décision fixé (non réglable) à 50%, pour une classification
+    # des risques stable et comparable d'une session/d'un poste à l'autre.
+    SEUIL = 0.50
+
     st.markdown("<br>", unsafe_allow_html=True)
     seuil_title = "🎚️ Seuil de décision" if L == "fr" else "🎚️ Decision Threshold"
     st.markdown(f"**{seuil_title}**")
-    SEUIL = st.slider(
-        label="",
-        min_value=0.20,
-        max_value=0.80,
-        value=float(meta["seuil_defaut"]),
-        step=0.01,
-        format="%.2f",
-        key="seuil_slider",
-        label_visibility="collapsed",
-    )
     st.caption(f"{t('seuil_lbl')} : {SEUIL:.0%}")
 
     st.divider()
@@ -943,11 +937,45 @@ def score_dataframe(df: pd.DataFrame) -> pd.DataFrame:
 
 
 DASHBOARD_VARS = {
-    "Region":        {"fr": "Région",     "en": "Region"},
-    "Type_FOSA":     {"fr": "Type de FOSA", "en": "Facility type"},
-    "Observance_4j": {"fr": "Observance",  "en": "Adherence"},
-    "Sexe":          {"fr": "Sexe",        "en": "Sex"},
+    "Region":               {"fr": "Région",              "en": "Region"},
+    "Type_FOSA":            {"fr": "Type de FOSA",         "en": "Facility type"},
+    "Observance_4j":        {"fr": "Observance",           "en": "Adherence"},
+    "Sexe":                 {"fr": "Sexe",                 "en": "Sex"},
+    "Tranche_Age":          {"fr": "Tranche d'âge",        "en": "Age group"},
+    "DSD_Recode":           {"fr": "Mode de dispensation", "en": "Dispensation mode"},
+    "Retesting":            {"fr": "Retesting VIH",        "en": "HIV retesting"},
+    "Soutien_PEPFAR":       {"fr": "Soutien PEPFAR",       "en": "PEPFAR support"},
+    "Soutien_Familial":     {"fr": "Soutien familial",     "en": "Family support"},
+    "Traitement_Alternatif":{"fr": "Traitement alternatif","en": "Alternative treatment"},
+    "Statut_Matrimonial":   {"fr": "Statut matrimonial",   "en": "Marital status"},
+    "Religion":             {"fr": "Religion",             "en": "Religion"},
+    "Niveau_Etude":         {"fr": "Niveau d'étude",       "en": "Education level"},
+    "Depenses_Mensuelles":  {"fr": "Dépenses mensuelles",  "en": "Monthly expenses"},
 }
+
+DASHBOARD_VARS_FIXES = ["Region", "Type_FOSA", "Observance_4j", "Sexe", "Tranche_Age"]
+
+
+def _bar_pct_risque_eleve(ax, df_res: pd.DataFrame, var: str, lang: str, titre_prefix: str):
+    """Dessine, sur un axe donné, le % à risque élevé par modalité de `var`."""
+    ax.set_facecolor("#f7faff")
+    if var not in df_res.columns:
+        ax.axis("off")
+        return
+    grp = (df_res.groupby(var)["Niveau de risque"]
+           .apply(lambda s: (s == "Élevé / High").mean() * 100)
+           .sort_values())
+    ax.barh(grp.index, grp.values, color="#e74c3c", height=0.6, edgecolor="#fff", linewidth=0.5)
+    for y, v in enumerate(grp.values):
+        ax.text(v + 1, y, f"{v:.0f}%", va="center", fontsize=8, color="#444")
+    label = DASHBOARD_VARS.get(var, {}).get(lang, var)
+    ax.set_title(f"{titre_prefix} {label}", fontsize=10, fontweight="700", color="#0b2d52", pad=8)
+    ax.set_xlim(0, max(grp.values.max() * 1.25, 10) if len(grp) else 10)
+    ax.tick_params(labelsize=8.5, colors="#333")
+    for sp in ["top", "right"]:
+        ax.spines[sp].set_visible(False)
+    ax.spines["left"].set_color("#e0e8f4")
+    ax.spines["bottom"].set_color("#e0e8f4")
 
 
 def draw_dashboard(df_res: pd.DataFrame, lang: str) -> plt.Figure:
@@ -955,8 +983,9 @@ def draw_dashboard(df_res: pd.DataFrame, lang: str) -> plt.Figure:
     niveau_order = ["Faible / Low", "Modéré / Moderate", "Élevé / High"]
     niveau_lbl   = {"fr": ["Faible", "Modéré", "Élevé"], "en": ["Low", "Moderate", "High"]}
     colors_risk  = ["#27ae60", "#f1c40f", "#e74c3c"]
+    titre_prefix = "% à risque élevé par" if lang == "fr" else "% high risk by"
 
-    fig, axes = plt.subplots(2, 2, figsize=(11, 7.5))
+    fig, axes = plt.subplots(2, 3, figsize=(15.5, 7.5))
     fig.patch.set_facecolor("#ffffff")
 
     ax = axes[0, 0]
@@ -967,29 +996,21 @@ def draw_dashboard(df_res: pd.DataFrame, lang: str) -> plt.Figure:
     ax.set_title("Répartition des niveaux de risque" if lang == "fr" else "Risk level distribution",
                  fontsize=10.5, fontweight="700", color="#0b2d52", pad=10)
 
-    axes_bar = [axes[0, 1], axes[1, 0], axes[1, 1]]
-    for ax, var in zip(axes_bar, ["Region", "Type_FOSA", "Observance_4j"]):
-        ax.set_facecolor("#f7faff")
-        if var not in df_res.columns:
-            ax.axis("off")
-            continue
-        grp = (df_res.groupby(var)["Niveau de risque"]
-               .apply(lambda s: (s == "Élevé / High").mean() * 100)
-               .sort_values())
-        ax.barh(grp.index, grp.values, color="#e74c3c", height=0.6, edgecolor="#fff", linewidth=0.5)
-        for y, v in enumerate(grp.values):
-            ax.text(v + 1, y, f"{v:.0f}%", va="center", fontsize=8, color="#444")
-        label = DASHBOARD_VARS.get(var, {}).get(lang, var)
-        titre = f"% à risque élevé par {label}" if lang == "fr" else f"% high risk by {label}"
-        ax.set_title(titre, fontsize=10, fontweight="700", color="#0b2d52", pad=8)
-        ax.set_xlim(0, max(grp.values.max() * 1.25, 10) if len(grp) else 10)
-        ax.tick_params(labelsize=8.5, colors="#333")
-        for sp in ["top", "right"]:
-            ax.spines[sp].set_visible(False)
-        ax.spines["left"].set_color("#e0e8f4")
-        ax.spines["bottom"].set_color("#e0e8f4")
+    axes_bar = [axes[0, 1], axes[0, 2], axes[1, 0], axes[1, 1], axes[1, 2]]
+    for ax, var in zip(axes_bar, DASHBOARD_VARS_FIXES):
+        _bar_pct_risque_eleve(ax, df_res, var, lang, titre_prefix)
 
     plt.tight_layout(pad=1.4)
+    return fig
+
+
+def draw_univariate(df_res: pd.DataFrame, var: str, lang: str) -> plt.Figure:
+    """Analyse univariée : % à risque élevé pour une seule variable choisie."""
+    titre_prefix = "% à risque élevé par" if lang == "fr" else "% high risk by"
+    fig, ax = plt.subplots(figsize=(9, 4.2))
+    fig.patch.set_facecolor("#ffffff")
+    _bar_pct_risque_eleve(ax, df_res, var, lang, titre_prefix)
+    plt.tight_layout(pad=1.2)
     return fig
 
 
@@ -1493,6 +1514,27 @@ with tab2:
                                    else f"Dashboard not available: {e}")
 
                     st.markdown("<br>", unsafe_allow_html=True)
+                    uni_titre = "🔍 Analyse univariée" if L == "fr" else "🔍 Univariate analysis"
+                    st.markdown(f"#### {uni_titre}")
+                    uni_intro = ("Choisissez une caractéristique pour voir le % de patients à risque élevé selon ses modalités."
+                                 if L == "fr" else
+                                 "Choose a characteristic to see the % of high-risk patients by category.")
+                    st.markdown(f'<div style="font-size:0.85em;color:#666;margin-bottom:10px;">{uni_intro}</div>',
+                                unsafe_allow_html=True)
+                    uni_options = [c for c in DASHBOARD_VARS if c in df_res.columns]
+                    uni_var = st.selectbox(
+                        "Caractéristique" if L == "fr" else "Characteristic",
+                        options=uni_options,
+                        format_func=lambda c: DASHBOARD_VARS.get(c, {}).get(L, c),
+                        key="uni_var_select",
+                    )
+                    try:
+                        st.pyplot(draw_univariate(df_res, uni_var, L), use_container_width=True)
+                    except Exception as e:
+                        st.warning(f"Analyse non disponible : {e}" if L == "fr"
+                                   else f"Analysis not available: {e}")
+
+                    st.markdown("<br>", unsafe_allow_html=True)
                     dl1, dl2, dl3 = st.columns(3)
 
                     with dl1:
@@ -1697,16 +1739,14 @@ The tool was validated on the 14 characteristics most associated with ART interr
 
     seuil_expl = (
         "**Rappel sur le seuil de décision :**\n\n"
-        "- **Seuil bas (0,20–0,40)** → Plus de patients signalés (moins de cas à risque manqués), mais plus de fausses alertes\n"
-        f"- **Seuil {meta['seuil_defaut']:.2f}** → Seuil recommandé par défaut\n"
-        "- **Seuil haut (0,60–0,80)** → Moins de fausses alertes, mais plus de cas à risque potentiellement manqués\n\n"
-        "Ajustez le curseur dans la barre latérale selon la priorité clinique de votre structure."
+        f"Le seuil est fixé à **{SEUIL:.0%}** pour tous les utilisateurs, afin que la classification des "
+        "risques reste stable et comparable d'une session ou d'un poste à l'autre : "
+        "une probabilité ≥ 50 % est classée « à risque élevé »."
         if L == "fr" else
         "**Decision threshold reminder:**\n\n"
-        "- **Low threshold (0.20–0.40)** → More patients flagged (fewer at-risk cases missed), but more false alarms\n"
-        f"- **Threshold {meta['seuil_defaut']:.2f}** → Recommended default threshold\n"
-        "- **High threshold (0.60–0.80)** → Fewer false alarms, but more at-risk cases potentially missed\n\n"
-        "Adjust the slider in the sidebar according to your facility's clinical priority."
+        f"The threshold is fixed at **{SEUIL:.0%}** for all users, so that risk classification stays "
+        "stable and comparable across sessions and workstations: "
+        "a probability ≥ 50% is classified as \"high risk\"."
     )
     st.info(seuil_expl)
 
