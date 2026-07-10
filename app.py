@@ -677,7 +677,11 @@ def generate_pdf(patient_vals: list, prob: float, niveau: str, niveau_key: str,
 
     pdf = FPDF()
     pdf.add_page()
-    pdf.set_auto_page_break(auto=True, margin=18)
+    # Mise en page tenant volontairement sur une seule fiche : le pied de page
+    # est positionné à 15 mm du bas (set_y(-15)), sous le seuil de saut de
+    # page automatique par défaut. Désactivé pour éviter qu'il ne soit
+    # renvoyé seul sur une seconde page.
+    pdf.set_auto_page_break(auto=False)
 
     # ── En-tête ──────────────────────────────────────────────────────────────
     pdf.set_fill_color(11, 45, 82)
