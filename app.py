@@ -277,6 +277,18 @@ T = {
                           "en": "Account created successfully, you are now logged in."},
     "welcome_user": {"fr": "👤 Connecté(e) en tant que",
                       "en": "👤 Logged in as"},
+
+    # ── Code d'accès application ────────────────────────────────────────────
+    "access_title": {"fr": "🔐 Accès restreint",
+                      "en": "🔐 Restricted access"},
+    "access_sub":   {"fr": "Cet outil est réservé au personnel autorisé du CNLS/GTC. "
+                            "Saisissez le code d'accès fourni pour continuer.",
+                      "en": "This tool is restricted to authorised NACC/GTC staff. "
+                            "Enter the provided access code to continue."},
+    "access_label": {"fr": "Code d'accès",           "en": "Access code"},
+    "btn_access":   {"fr": "➡️ Accéder à l'application", "en": "➡️ Enter the application"},
+    "err_access_code": {"fr": "Code d'accès incorrect.",
+                         "en": "Incorrect access code."},
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -346,6 +358,11 @@ BASE    = Path(__file__).parent
 ASSETS  = BASE / "assets"
 MODELES = BASE / "modeles"
 USERS_FILE = BASE / "users.json"
+
+# Code d'accès global de l'application, distribué hors-bande au personnel
+# autorisé. Configurable via .streamlit/secrets.toml (clé "access_code"),
+# avec une valeur par défaut pour le développement local.
+ACCESS_CODE = st.secrets.get("access_code", "CNLS-TARV-2026")
 
 
 @st.cache_resource
@@ -467,6 +484,31 @@ def render_login_page() -> None:
                     }
                     st.success(t("success_register"))
                     st.rerun()
+
+
+def render_access_gate() -> None:
+    st.markdown(f"""
+    <div style="max-width:460px;margin:60px auto 0 auto;">
+      <div style="background:#fff;border-radius:14px;padding:28px 32px;
+           box-shadow:0 4px 18px rgba(0,0,0,0.08);border-top:4px solid #1a5e8a;">
+        <div style="font-size:1.15em;font-weight:800;color:#0b2d52;text-align:center;">{t("access_title")}</div>
+        <div style="font-size:0.85em;color:#777;text-align:center;margin-top:8px;">{t("access_sub")}</div>
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    col_l, col_c, col_r = st.columns([1, 2, 1])
+    with col_c:
+        with st.form("form_access_code"):
+            code = st.text_input(t("access_label"), type="password", key="access_code_input")
+            submitted = st.form_submit_button(t("btn_access"), use_container_width=True, type="primary")
+        if submitted:
+            if secrets.compare_digest(code.strip(), ACCESS_CODE):
+                st.session_state["access_granted"] = True
+                st.rerun()
+            else:
+                st.error(t("err_access_code"))
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1281,8 +1323,13 @@ def generate_individual_pdfs_zip(df_res: pd.DataFrame, lang: str,
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# BARRIÈRE D'AUTHENTIFICATION
+# BARRIÈRE : CODE D'ACCÈS PUIS AUTHENTIFICATION
 # ─────────────────────────────────────────────────────────────────────────────
+if not st.session_state.get("access_granted"):
+    render_access_gate()
+    st.markdown(f'<div class="footer">{t("footer")}</div>', unsafe_allow_html=True)
+    st.stop()
+
 if not st.session_state.get("auth_user"):
     render_login_page()
     st.markdown(f'<div class="footer">{t("footer")}</div>', unsafe_allow_html=True)
