@@ -362,7 +362,7 @@ USERS_FILE = BASE / "users.json"
 # Code d'accès global de l'application, distribué hors-bande au personnel
 # autorisé. Configurable via .streamlit/secrets.toml (clé "access_code"),
 # avec une valeur par défaut pour le développement local.
-ACCESS_CODE = st.secrets.get("access_code", "CNLS-TARV-2026")
+ACCESS_CODE = st.secrets.get("access_code", "0000")
 
 
 @st.cache_resource
